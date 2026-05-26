@@ -1,0 +1,347 @@
+"use client";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { FIELDS, calcCompletion, progressColor, buildDigitollJSON } from "@/lib/fields";
+
+interface FieldData { field_key: string; field_value: string | null; confidence: string | null; source: string; }
+interface Invoice { id: string; file_name: string; file_size: number; status: string; completion_pct: number; created_at: string; invoice_fields: FieldData[]; }
+
+function fmtSize(b: number) { if (b < 1024) return b + "B"; if (b < 1048576) return Math.round(b / 1024) + " KB"; return (b / 1048576).toFixed(1) + " MB"; }
+function fmtDate(s: string) { return new Date(s).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }); }
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = { processing: "Bearbetar", extracted: "Extraherat", reviewed: "Granskat", exported: "Exporterat" };
+  return <span className={`status-badge st-${status}`}>{map[status] ?? status}</span>;
+}
+
+function syntaxHL(obj: unknown): string {
+  return JSON.stringify(obj, null, 2)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (m) => {
+      let cls = "jn";
+      if (/^"/.test(m)) cls = /:$/.test(m) ? "jk" : "js";
+      else if (/null/.test(m)) cls = "jnull";
+      return `<span class="${cls}">${m}</span>`;
+    });
+}
+
+export default function Home() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [localFields, setLocalFields] = useState<Record<string, { value: string; source: string; confidence: string | null }>>({});
+  const [processing, setProcessing] = useState<Set<string>>(new Set());
+  const [showExport, setShowExport] = useState(false);
+  const [exportPayload, setExportPayload] = useState<unknown>(null);
+  const [copyOk, setCopyOk] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const active = invoices.find((i) => i.id === activeId) ?? null;
+
+  const loadInvoices = useCallback(async () => {
+    const res = await fetch("/api/invoices");
+    if (res.ok) setInvoices(await res.json());
+  }, []);
+
+  useEffect(() => { loadInvoices(); }, [loadInvoices]);
+
+  // Sync localFields when active invoice changes
+  useEffect(() => {
+    if (!active) return;
+    const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
+    active.invoice_fields.forEach((f) => {
+      map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
+    });
+    setLocalFields(map);
+  }, [active?.id]); // eslint-disable-line
+
+  async function handleFiles(files: FileList | null) {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      // Create invoice record + upload
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/invoices", { method: "POST", body: fd });
+      if (!res.ok) continue;
+      const invoice: Invoice = await res.json();
+      setInvoices((prev) => [{ ...invoice, invoice_fields: [] }, ...prev]);
+      setActiveId(invoice.id);
+      setProcessing((p) => new Set(p).add(invoice.id));
+
+      // Extract with Claude
+      const fd2 = new FormData();
+      fd2.append("file", file);
+      fd2.append("invoiceId", invoice.id);
+      const extRes = await fetch("/api/extract", { method: "POST", body: fd2 });
+      setProcessing((p) => { const s = new Set(p); s.delete(invoice.id); return s; });
+      if (extRes.ok) await loadInvoices();
+    }
+  }
+
+  async function saveField(invoiceId: string, fieldKey: string, value: string) {
+    setLocalFields((prev) => ({ ...prev, [fieldKey]: { value, source: "manual", confidence: null } }));
+    await fetch(`/api/invoices/${invoiceId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fieldKey, fieldValue: value }),
+    });
+    await loadInvoices();
+  }
+
+  async function handleExport() {
+    if (!active) return;
+    const res = await fetch(`/api/invoices/${active.id}`, { method: "POST" });
+    if (!res.ok) return;
+    const { payload } = await res.json();
+    setExportPayload(payload);
+    setShowExport(true);
+    await loadInvoices();
+  }
+
+  function downloadJSON() {
+    if (!exportPayload || !active) return;
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `digitoll_${active.file_name.replace(/\.[^.]+$/, "")}.json`;
+    a.click();
+  }
+
+  function copyJSON() {
+    if (!exportPayload) return;
+    navigator.clipboard.writeText(JSON.stringify(exportPayload, null, 2));
+    setCopyOk(true);
+    setTimeout(() => setCopyOk(false), 2000);
+  }
+
+  // Build value map for completion calc
+  const valueMap: Record<string, string | null> = {};
+  if (active) {
+    FIELDS.forEach((f) => { valueMap[f.key] = localFields[f.key]?.value ?? null; });
+  }
+  const comp = active ? calcCompletion(valueMap) : { filled: 0, total: 0, pct: 0 };
+  const isReady = comp.pct === 100;
+
+  // Group FIELDS into pairs for two-col layout
+  const rows: (typeof FIELDS[number] | [typeof FIELDS[number], typeof FIELDS[number]])[] = [];
+  let i = 0;
+  while (i < FIELDS.length) {
+    const f = FIELDS[i];
+    if (f.half === "left" && i + 1 < FIELDS.length && FIELDS[i + 1].half === "right") {
+      rows.push([f, FIELDS[i + 1]]); i += 2;
+    } else { rows.push(f); i++; }
+  }
+
+  function renderField(f: typeof FIELDS[number]) {
+    const fd = localFields[f.key];
+    const val = fd?.value ?? "";
+    const conf = fd?.confidence ?? null;
+    const isManual = fd?.source === "manual";
+    const isEmpty = !val.trim();
+    const showMissing = f.required && isEmpty && active && !processing.has(active.id);
+    let cls = "field-input";
+    if (showMissing) cls += " missing";
+    else if (isManual) cls += " manual";
+    else if (val) cls += " ai-filled";
+
+    let badge = null;
+    if (isManual) badge = <span className="conf-badge conf-manual">Manuellt</span>;
+    else if (conf === "high") badge = <span className="conf-badge conf-high">Hög säkerhet</span>;
+    else if (conf === "med") badge = <span className="conf-badge conf-med">Medel</span>;
+    else if (conf === "low") badge = <span className="conf-badge conf-low">Låg säkerhet</span>;
+
+    return (
+      <div className="field-row" key={f.key}>
+        <div className="field-header">
+          <span className="field-label">
+            {f.label}
+            {f.required && <span className="req-mark">*</span>}
+            {f.stronglyRecommended && <span className="rec-mark">(rekommenderas)</span>}
+            {!f.required && !f.stronglyRecommended && <span className="opt-mark">(valfri)</span>}
+          </span>
+          {badge}
+        </div>
+        <input
+          className={cls}
+          value={val}
+          placeholder={f.placeholder ?? ""}
+          onChange={(e) => {
+            setLocalFields((prev) => ({ ...prev, [f.key]: { value: e.target.value, source: "manual", confidence: null } }));
+          }}
+          onBlur={(e) => {
+            if (active) saveField(active.id, f.key, e.target.value);
+          }}
+        />
+        {showMissing && <div className="missing-msg">Obligatoriskt – fyll i detta fält</div>}
+      </div>
+    );
+  }
+
+  let lastSection = "";
+
+  return (
+    <div className="app">
+      {/* Sidebar */}
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <span className="sidebar-title">Fakturor</span>
+          <button className="btn btn-upload" onClick={() => fileInput.current?.click()}>+ Ladda upp</button>
+        </div>
+        <div className="upload-zone" onClick={() => fileInput.current?.click()}>
+          <div className="upload-zone-icon">📄</div>
+          <div className="upload-zone-txt">Dra hit eller klicka</div>
+          <div className="upload-zone-sub">PDF, PNG, JPG</div>
+        </div>
+        <div className="invoice-list">
+          {invoices.map((inv) => {
+            const isProc = processing.has(inv.id);
+            const pct = inv.completion_pct;
+            const color = progressColor(pct);
+            return (
+              <div key={inv.id} className={`inv-card${activeId === inv.id ? " active" : ""}`} onClick={() => setActiveId(inv.id)}>
+                <div className="inv-name" title={inv.file_name}>{inv.file_name}</div>
+                <div className="inv-meta">{fmtSize(inv.file_size)} · {fmtDate(inv.created_at)}</div>
+                {isProc ? (
+                  <div style={{ fontSize: 11, color: "var(--blue)", display: "flex", alignItems: "center", gap: 5 }}>
+                    <span className="spinner" /> Läser av...
+                  </div>
+                ) : (
+                  <div className="inv-progress">
+                    <div className="inv-status-dot" style={{ background: color }} />
+                    <div className="prog-bar-bg"><div className="prog-bar-fill" style={{ width: pct + "%", background: color }} /></div>
+                    <div className="prog-pct" style={{ color }}>{pct}%</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <input ref={fileInput} type="file" style={{ display: "none" }} accept=".pdf,.png,.jpg,.jpeg" multiple onChange={(e) => handleFiles(e.target.files)} />
+      </div>
+
+      {/* Main */}
+      <div className="main">
+        {!active ? (
+          <div className="empty-state">
+            <div className="empty-icon">📋</div>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Välj en faktura för att granska</span>
+          </div>
+        ) : (
+          <>
+            <div className="main-header">
+              <div className="doc-title" title={active.file_name}>{active.file_name}</div>
+              <div className="header-actions">
+                <StatusBadge status={active.status} />
+                {comp.total - comp.filled > 0 && (
+                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{comp.total - comp.filled} saknas</span>
+                )}
+                <button className={`btn${isReady ? " btn-primary" : ""}`} disabled={!isReady} onClick={handleExport}>
+                  Exportera till Digitoll
+                </button>
+              </div>
+            </div>
+            <div className="completion-banner">
+              <span className="banner-label">Ifyllt</span>
+              <div className="banner-bar-bg">
+                <div className="banner-bar-fill" style={{ width: comp.pct + "%", background: progressColor(comp.pct) }} />
+              </div>
+              <span className="banner-count" style={{ color: progressColor(comp.pct) }}>{comp.filled} / {comp.total} fält</span>
+            </div>
+            <div className="form-area">
+              {processing.has(active.id) ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", paddingTop: 24 }}>
+                  <span className="spinner" style={{ width: 16, height: 16 }} />
+                  <span>Claude läser av fakturan...</span>
+                </div>
+              ) : (
+                rows.map((row) => {
+                  if (Array.isArray(row)) {
+                    const sec = row[0].section;
+                    const showSec = sec !== lastSection;
+                    lastSection = sec;
+                    return (
+                      <div key={row[0].key}>
+                        {showSec && <div className="section-label">{sec}</div>}
+                        <div className="two-col">{row.map(renderField)}</div>
+                      </div>
+                    );
+                  } else {
+                    const showSec = row.section !== lastSection;
+                    lastSection = row.section;
+                    return (
+                      <div key={row.key}>
+                        {showSec && <div className="section-label">{row.section}</div>}
+                        {renderField(row)}
+                      </div>
+                    );
+                  }
+                })
+              )}
+            </div>
+            <div className="legend">
+              <div className="legend-item"><div className="legend-line" style={{ background: "var(--blue)" }} /> AI-förslag</div>
+              <div className="legend-item"><div className="legend-line" style={{ background: "var(--green)" }} /> Manuellt ifyllt</div>
+              <div className="legend-item"><div className="legend-line" style={{ background: "var(--red)" }} /> Obligatoriskt saknas</div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Export modal */}
+      {showExport && exportPayload && active && (
+        <div className="modal-overlay" onClick={() => setShowExport(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Exportera till Digitoll</span>
+              <div className="modal-actions">
+                {copyOk && <span className="copy-ok">Kopierat!</span>}
+                <button className="btn" onClick={copyJSON}>Kopiera JSON</button>
+                <button className="btn btn-primary" onClick={downloadJSON}>Ladda ner .json</button>
+                <button className="btn" onClick={() => setShowExport(false)}>Stäng</button>
+              </div>
+            </div>
+            <div className="modal-body">
+              <div className="modal-summary">
+                {[
+                  ["Exportör", valueMap["exp_name"]],
+                  ["Importör", valueMap["imp_name"]],
+                  ["Värde", valueMap["totalValue"] ? `${valueMap["totalValue"]} ${valueMap["currency"] ?? ""}` : "–"],
+                  ["Destination", valueMap["destinationCountry"] ?? "–"],
+                ].map(([label, val]) => (
+                  <div key={label} className="summary-cell">
+                    <div className="cell-label">{label}</div>
+                    <div className="cell-val">{val || "–"}</div>
+                  </div>
+                ))}
+              </div>
+              {[
+                { title: "Exportör", keys: ["exp_name", "exp_address"] },
+                { title: "Importör", keys: ["imp_name", "imp_address", "imp_id"] },
+                { title: "Gods", keys: ["totalValue", "currency", "totalNetWeight", "totalGrossWeight", "hsCode", "originCountry"] },
+                { title: "Tull", keys: ["destinationCountry", "customsValue", "procedureCode"] },
+                { title: "Transport", keys: ["modeOfTransport", "incoterm", "incotermPlace", "transportRef"] },
+              ].map((sec) => (
+                <div className="modal-section" key={sec.title}>
+                  <div className="modal-section-title">{sec.title}</div>
+                  <div className="fields-grid2">
+                    {sec.keys.map((k) => {
+                      const f = FIELDS.find((f) => f.key === k);
+                      const v = valueMap[k];
+                      return (
+                        <div className="fi" key={k}>
+                          <div className="fi-key">{k}</div>
+                          <div className={`fi-val${!v ? " fi-null" : ""}`}>{v || "–"}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div className="json-block">
+                <div className="json-block-label">Raw JSON</div>
+                <pre className="json-pre" dangerouslySetInnerHTML={{ __html: syntaxHL(exportPayload) }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
