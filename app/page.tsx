@@ -3,8 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { FIELDS, calcCompletion, progressColor, buildDigitollJSON } from "@/lib/fields";
 
 interface FieldData { field_key: string; field_value: string | null; confidence: string | null; source: string; }
-interface Invoice { id: string; file_name: string; file_size: number; status: string; completion_pct: number; created_at: string; invoice_fields: FieldData[]; }
-
+interface Invoice { id: string; file_name: string; file_size: number; status: string; completion_pct: number; created_at: string; file_path: string | null; invoice_fields: FieldData[]; }
 function fmtSize(b: number) { if (b < 1024) return b + "B"; if (b < 1048576) return Math.round(b / 1024) + " KB"; return (b / 1048576).toFixed(1) + " MB"; }
 function fmtDate(s: string) { return new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); }
 
