@@ -120,7 +120,7 @@ export default function Home() {
   const isReady = comp.pct === 100;
 
   // Group FIELDS into pairs for two-col layout
-  const rows: (typeof FIELDS[number] | [typeof FIELDS[number], typeof FIELDS[number]])[] = [];
+  type FieldDef = typeof FIELDS[number]; const rows: (FieldDef | [FieldDef, FieldDef])[] = [];
   let i = 0;
   while (i < FIELDS.length) {
     const f = FIELDS[i];
