@@ -6,10 +6,10 @@ interface FieldData { field_key: string; field_value: string | null; confidence:
 interface Invoice { id: string; file_name: string; file_size: number; status: string; completion_pct: number; created_at: string; invoice_fields: FieldData[]; }
 
 function fmtSize(b: number) { if (b < 1024) return b + "B"; if (b < 1048576) return Math.round(b / 1024) + " KB"; return (b / 1048576).toFixed(1) + " MB"; }
-function fmtDate(s: string) { return new Date(s).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }); }
+function fmtDate(s: string) { return new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = { processing: "Bearbetar", extracted: "Extraherat", reviewed: "Granskat", exported: "Exporterat" };
+  const map: Record<string, string> = { processing: "Processing", extracted: "Extracted", reviewed: "Reviewed", exported: "Exported" };
   return <span className={`status-badge st-${status}`}>{map[status] ?? status}</span>;
 }
 
@@ -43,7 +43,6 @@ export default function Home() {
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
-  // Sync localFields when active invoice changes
   useEffect(() => {
     if (!active) return;
     const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
@@ -55,7 +54,7 @@ export default function Home() {
 
   async function deleteInvoice(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Ta bort fakturan? Detta går inte att ångra.")) return;
+    if (!confirm("Delete this invoice? This action cannot be undone.")) return;
     await fetch(`/api/invoices/${id}`, { method: "DELETE" });
     setInvoices((prev) => prev.filter((i) => i.id !== id));
     if (activeId === id) setActiveId(null);
@@ -64,7 +63,6 @@ export default function Home() {
   async function handleFiles(files: FileList | null) {
     if (!files) return;
     for (const file of Array.from(files)) {
-      // Create invoice record + upload
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/invoices", { method: "POST", body: fd });
@@ -74,7 +72,6 @@ export default function Home() {
       setActiveId(invoice.id);
       setProcessing((p) => new Set(p).add(invoice.id));
 
-      // Extract with Claude
       const fd2 = new FormData();
       fd2.append("file", file);
       fd2.append("invoiceId", invoice.id);
@@ -119,7 +116,6 @@ export default function Home() {
     setTimeout(() => setCopyOk(false), 2000);
   }
 
-  // Build value map for completion calc
   const valueMap: Record<string, string | null> = {};
   if (active) {
     FIELDS.forEach((f) => { valueMap[f.key] = localFields[f.key]?.value ?? null; });
@@ -128,7 +124,6 @@ export default function Home() {
   const isReady = comp.pct === 100;
 
   type FieldDef = typeof FIELDS[number];
-  // Group FIELDS into pairs for two-col layout
   const rows: (FieldDef | [FieldDef, FieldDef])[] = [];
   let i = 0;
   while (i < FIELDS.length) {
@@ -151,10 +146,10 @@ export default function Home() {
     else if (val) cls += " ai-filled";
 
     let badge = null;
-    if (isManual) badge = <span className="conf-badge conf-manual">Manuellt</span>;
-    else if (conf === "high") badge = <span className="conf-badge conf-high">Hög säkerhet</span>;
-    else if (conf === "med") badge = <span className="conf-badge conf-med">Medel</span>;
-    else if (conf === "low") badge = <span className="conf-badge conf-low">Låg säkerhet</span>;
+    if (isManual) badge = <span className="conf-badge conf-manual">Manual</span>;
+    else if (conf === "high") badge = <span className="conf-badge conf-high">High confidence</span>;
+    else if (conf === "med") badge = <span className="conf-badge conf-med">Medium</span>;
+    else if (conf === "low") badge = <span className="conf-badge conf-low">Low confidence</span>;
 
     return (
       <div className="field-row" key={f.key}>
@@ -162,8 +157,8 @@ export default function Home() {
           <span className="field-label">
             {f.label}
             {f.required && <span className="req-mark">*</span>}
-            {f.stronglyRecommended && <span className="rec-mark">(rekommenderas)</span>}
-            {!f.required && !f.stronglyRecommended && <span className="opt-mark">(valfri)</span>}
+            {f.stronglyRecommended && <span className="rec-mark">(recommended)</span>}
+            {!f.required && !f.stronglyRecommended && <span className="opt-mark">(optional)</span>}
           </span>
           {badge}
         </div>
@@ -178,7 +173,7 @@ export default function Home() {
             if (active) saveField(active.id, f.key, e.target.value);
           }}
         />
-        {showMissing && <div className="missing-msg">Obligatoriskt – fyll i detta fält</div>}
+        {showMissing && <div className="missing-msg">Required — please fill in this field</div>}
       </div>
     );
   }
@@ -187,15 +182,14 @@ export default function Home() {
 
   return (
     <div className="app">
-      {/* Sidebar */}
       <div className="sidebar">
         <div className="sidebar-header">
-          <span className="sidebar-title">Fakturor</span>
-          <button className="btn btn-upload" onClick={() => fileInput.current?.click()}>+ Ladda upp</button>
+          <span className="sidebar-title">Invoices</span>
+          <button className="btn btn-upload" onClick={() => fileInput.current?.click()}>+ Upload</button>
         </div>
         <div className="upload-zone" onClick={() => fileInput.current?.click()}>
           <div className="upload-zone-icon">📄</div>
-          <div className="upload-zone-txt">Dra hit eller klicka</div>
+          <div className="upload-zone-txt">Drop files here or click to upload</div>
           <div className="upload-zone-sub">PDF, PNG, JPG</div>
         </div>
         <div className="invoice-list">
@@ -209,14 +203,14 @@ export default function Home() {
                   <div className="inv-name" title={inv.file_name} style={{ flex: 1 }}>{inv.file_name}</div>
                   <button
                     onClick={(e) => deleteInvoice(inv.id, e)}
-                    title="Ta bort"
+                    title="Remove invoice"
                     style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}
                   >✕</button>
                 </div>
                 <div className="inv-meta">{fmtSize(inv.file_size)} · {fmtDate(inv.created_at)}</div>
                 {isProc ? (
                   <div style={{ fontSize: 11, color: "var(--blue)", display: "flex", alignItems: "center", gap: 5 }}>
-                    <span className="spinner" /> Läser av...
+                    <span className="spinner" /> Extracting data...
                   </div>
                 ) : (
                   <div className="inv-progress">
@@ -232,12 +226,11 @@ export default function Home() {
         <input ref={fileInput} type="file" style={{ display: "none" }} accept=".pdf,.png,.jpg,.jpeg" multiple onChange={(e) => handleFiles(e.target.files)} />
       </div>
 
-      {/* Main */}
       <div className="main">
         {!active ? (
           <div className="empty-state">
             <div className="empty-icon">📋</div>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Välj en faktura för att granska</span>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Select an invoice to review</span>
           </div>
         ) : (
           <>
@@ -246,25 +239,25 @@ export default function Home() {
               <div className="header-actions">
                 <StatusBadge status={active.status} />
                 {comp.total - comp.filled > 0 && (
-                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{comp.total - comp.filled} saknas</span>
+                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{comp.total - comp.filled} fields missing</span>
                 )}
                 <button className={`btn${isReady ? " btn-primary" : ""}`} disabled={!isReady} onClick={handleExport}>
-                  Exportera till Digitoll
+                  Export to Digitoll
                 </button>
               </div>
             </div>
             <div className="completion-banner">
-              <span className="banner-label">Ifyllt</span>
+              <span className="banner-label">Completion</span>
               <div className="banner-bar-bg">
                 <div className="banner-bar-fill" style={{ width: comp.pct + "%", background: progressColor(comp.pct) }} />
               </div>
-              <span className="banner-count" style={{ color: progressColor(comp.pct) }}>{comp.filled} / {comp.total} fält</span>
+              <span className="banner-count" style={{ color: progressColor(comp.pct) }}>{comp.filled} / {comp.total} required fields</span>
             </div>
             <div className="form-area">
               {processing.has(active.id) ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", paddingTop: 24 }}>
                   <span className="spinner" style={{ width: 16, height: 16 }} />
-                  <span>Claude läser av fakturan...</span>
+                  <span>Extracting data from invoice...</span>
                 </div>
               ) : (
                 rows.map((row) => {
@@ -292,33 +285,32 @@ export default function Home() {
               )}
             </div>
             <div className="legend">
-              <div className="legend-item"><div className="legend-line" style={{ background: "var(--blue)" }} /> AI-förslag</div>
-              <div className="legend-item"><div className="legend-line" style={{ background: "var(--green)" }} /> Manuellt ifyllt</div>
-              <div className="legend-item"><div className="legend-line" style={{ background: "var(--red)" }} /> Obligatoriskt saknas</div>
+              <div className="legend-item"><div className="legend-line" style={{ background: "var(--blue)" }} /> AI suggestion</div>
+              <div className="legend-item"><div className="legend-line" style={{ background: "var(--green)" }} /> Manually edited</div>
+              <div className="legend-item"><div className="legend-line" style={{ background: "var(--red)" }} /> Required field missing</div>
             </div>
           </>
         )}
       </div>
 
-      {/* Export modal */}
       {showExport && exportPayload && active && (
         <div className="modal-overlay" onClick={() => setShowExport(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Exportera till Digitoll</span>
+              <span className="modal-title">Export to Digitoll</span>
               <div className="modal-actions">
-                {copyOk && <span className="copy-ok">Kopierat!</span>}
-                <button className="btn" onClick={copyJSON}>Kopiera JSON</button>
-                <button className="btn btn-primary" onClick={downloadJSON}>Ladda ner .json</button>
-                <button className="btn" onClick={() => setShowExport(false)}>Stäng</button>
+                {copyOk && <span className="copy-ok">Copied!</span>}
+                <button className="btn" onClick={copyJSON}>Copy JSON</button>
+                <button className="btn btn-primary" onClick={downloadJSON}>Download .json</button>
+                <button className="btn" onClick={() => setShowExport(false)}>Close</button>
               </div>
             </div>
             <div className="modal-body">
               <div className="modal-summary">
                 {[
-                  ["Exportör", valueMap["exp_name"]],
-                  ["Importör", valueMap["imp_name"]],
-                  ["Värde", valueMap["totalValue"] ? `${valueMap["totalValue"]} ${valueMap["currency"] ?? ""}` : "–"],
+                  ["Exporter", valueMap["exp_name"]],
+                  ["Importer", valueMap["imp_name"]],
+                  ["Total Value", valueMap["totalValue"] ? `${valueMap["totalValue"]} ${valueMap["currency"] ?? ""}` : "–"],
                   ["Destination", valueMap["destinationCountry"] ?? "–"],
                 ].map(([label, val]) => (
                   <div key={label} className="summary-cell">
@@ -328,17 +320,16 @@ export default function Home() {
                 ))}
               </div>
               {[
-                { title: "Exportör", keys: ["exp_name", "exp_address"] },
-                { title: "Importör", keys: ["imp_name", "imp_address", "imp_id"] },
-                { title: "Gods", keys: ["totalValue", "currency", "totalNetWeight", "totalGrossWeight", "hsCode", "originCountry"] },
-                { title: "Tull", keys: ["destinationCountry", "customsValue", "procedureCode"] },
+                { title: "Exporter", keys: ["exp_name", "exp_address"] },
+                { title: "Importer", keys: ["imp_name", "imp_address", "imp_id"] },
+                { title: "Goods", keys: ["totalValue", "currency", "totalNetWeight", "totalGrossWeight", "hsCode", "originCountry"] },
+                { title: "Customs", keys: ["destinationCountry", "customsValue", "procedureCode"] },
                 { title: "Transport", keys: ["modeOfTransport", "incoterm", "incotermPlace", "transportRef"] },
               ].map((sec) => (
                 <div className="modal-section" key={sec.title}>
                   <div className="modal-section-title">{sec.title}</div>
                   <div className="fields-grid2">
                     {sec.keys.map((k) => {
-                      const f = FIELDS.find((f) => f.key === k);
                       const v = valueMap[k];
                       return (
                         <div className="fi" key={k}>

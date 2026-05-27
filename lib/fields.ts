@@ -13,28 +13,28 @@ export interface FieldDef {
 
 export const FIELDS: FieldDef[] = [
   // Exporter
-  { section: "Exportör", key: "exp_name", label: "Namn", required: true, placeholder: "Företagsnamn" },
-  { section: "Exportör", key: "exp_address", label: "Adress", required: true, placeholder: "Gatuadress, stad, land" },
+  { section: "Exporter", key: "exp_name", label: "Name", required: true, placeholder: "Company name" },
+  { section: "Exporter", key: "exp_address", label: "Address", required: true, placeholder: "Street address, city, country" },
   // Importer
-  { section: "Importör", key: "imp_name", label: "Namn", required: true, placeholder: "Företagsnamn" },
-  { section: "Importör", key: "imp_address", label: "Adress", required: true, placeholder: "Gatuadress, stad, land" },
-  { section: "Importör", key: "imp_id", label: "EORI / VAT-nummer", required: false, stronglyRecommended: true, placeholder: "t.ex. SE556123456701" },
+  { section: "Importer", key: "imp_name", label: "Name", required: true, placeholder: "Company name" },
+  { section: "Importer", key: "imp_address", label: "Address", required: true, placeholder: "Street address, city, country" },
+  { section: "Importer", key: "imp_id", label: "EORI / VAT Number", required: false, stronglyRecommended: true, placeholder: "e.g. SE556123456701" },
   // Goods
-  { section: "Gods", key: "totalValue", label: "Totalt värde", required: true, placeholder: "t.ex. 12500.00", half: "left" },
-  { section: "Gods", key: "currency", label: "Valuta", required: true, placeholder: "t.ex. EUR", half: "right" },
-  { section: "Gods", key: "totalNetWeight", label: "Nettovikt (kg)", required: true, placeholder: "t.ex. 145.5", half: "left" },
-  { section: "Gods", key: "totalGrossWeight", label: "Bruttovikt (kg)", required: true, placeholder: "t.ex. 158.0", half: "right" },
-  { section: "Gods – valfri gruppering", key: "hsCode", label: "HS-kod", required: false, placeholder: "t.ex. 8471.30", half: "left" },
-  { section: "Gods – valfri gruppering", key: "originCountry", label: "Ursprungsland", required: false, placeholder: "t.ex. SE", half: "right" },
+  { section: "Goods", key: "totalValue", label: "Total Value", required: true, placeholder: "e.g. 12500.00", half: "left" },
+  { section: "Goods", key: "currency", label: "Currency", required: true, placeholder: "e.g. EUR", half: "right" },
+  { section: "Goods", key: "totalNetWeight", label: "Net Weight (kg)", required: true, placeholder: "e.g. 145.5", half: "left" },
+  { section: "Goods", key: "totalGrossWeight", label: "Gross Weight (kg)", required: true, placeholder: "e.g. 158.0", half: "right" },
+  { section: "Goods — Optional Grouping", key: "hsCode", label: "HS Code", required: false, placeholder: "e.g. 8471.30", half: "left" },
+  { section: "Goods — Optional Grouping", key: "originCountry", label: "Country of Origin", required: false, placeholder: "e.g. SE", half: "right" },
   // Customs
-  { section: "Tull", key: "destinationCountry", label: "Destinationsland", required: true, placeholder: "t.ex. FI", half: "left" },
-  { section: "Tull", key: "customsValue", label: "Tullvärde", required: true, placeholder: "t.ex. 12500.00", half: "right" },
-  { section: "Tull", key: "procedureCode", label: "Procedurkod", required: false, placeholder: "t.ex. 4000" },
+  { section: "Customs", key: "destinationCountry", label: "Destination Country", required: true, placeholder: "e.g. FI", half: "left" },
+  { section: "Customs", key: "customsValue", label: "Customs Value", required: true, placeholder: "e.g. 12500.00", half: "right" },
+  { section: "Customs", key: "procedureCode", label: "Procedure Code", required: false, placeholder: "e.g. 4000" },
   // Transport
-  { section: "Transport", key: "modeOfTransport", label: "Transportsätt", required: true, placeholder: "t.ex. Road, Sea, Air" },
-  { section: "Transport", key: "incoterm", label: "Incoterm", required: true, placeholder: "t.ex. DAP", half: "left" },
-  { section: "Transport", key: "incotermPlace", label: "Plats", required: true, placeholder: "t.ex. Helsinki", half: "right" },
-  { section: "Transport", key: "transportRef", label: "Transportreferens", required: false, placeholder: "t.ex. fraktsedelsnummer" },
+  { section: "Transport", key: "modeOfTransport", label: "Mode of Transport", required: true, placeholder: "e.g. Road, Sea, Air" },
+  { section: "Transport", key: "incoterm", label: "Incoterm", required: true, placeholder: "e.g. DAP", half: "left" },
+  { section: "Transport", key: "incotermPlace", label: "Place", required: true, placeholder: "e.g. Helsinki", half: "right" },
+  { section: "Transport", key: "transportRef", label: "Transport Reference", required: false, placeholder: "e.g. waybill number" },
 ];
 
 export const REQUIRED_FIELDS = FIELDS.filter((f) => f.required).map((f) => f.key);
