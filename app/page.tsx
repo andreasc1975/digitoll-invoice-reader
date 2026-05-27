@@ -32,6 +32,7 @@ export default function Home() {
   const [showExport, setShowExport] = useState(false);
   const [exportPayload, setExportPayload] = useState<Record<string, unknown> | null>(null);
   const [copyOk, setCopyOk] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const active = invoices.find((i) => i.id === activeId) ?? null;
@@ -58,6 +59,22 @@ export default function Home() {
     await fetch(`/api/invoices/${id}`, { method: "DELETE" });
     setInvoices((prev) => prev.filter((i) => i.id !== id));
     if (activeId === id) setActiveId(null);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    handleFiles(e.dataTransfer.files);
   }
 
   async function handleFiles(files: FileList | null) {
@@ -187,7 +204,14 @@ export default function Home() {
           <span className="sidebar-title">Invoices</span>
           <button className="btn btn-upload" onClick={() => fileInput.current?.click()}>+ Upload</button>
         </div>
-        <div className="upload-zone" onClick={() => fileInput.current?.click()}>
+        <div
+          className="upload-zone"
+          onClick={() => fileInput.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          style={dragOver ? { borderColor: "var(--blue)", background: "var(--bg-info)" } : {}}
+        >
           <div className="upload-zone-icon">📄</div>
           <div className="upload-zone-txt">Drop files here or click to upload</div>
           <div className="upload-zone-sub">PDF, PNG, JPG</div>
