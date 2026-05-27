@@ -54,19 +54,19 @@ export default function Home() {
       map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
     });
     setLocalFields(map);
-    // Load file preview from storage
-    if (active.file_path) {
-      fetch(`/api/invoices/${active.id}/file`)
-        .then((r) => r.ok ? r.blob() : null)
-        .then((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            setFileUrl({ url, type: blob.type });
-          }
-        });
-    } else {
-      setFileUrl(null);
-    }
+    // Load file preview – retry a few times if file not yet uploaded
+    const loadFile = async (retries = 5): Promise<void> => {
+      const res = await fetch(`/api/invoices/${active.id}/file`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setFileUrl({ url, type: blob.type });
+      } else if (retries > 0) {
+        await new Promise(r => setTimeout(r, 1000));
+        loadFile(retries - 1);
+      }
+    };
+    loadFile();
   }, [active?.id]); // eslint-disable-line
 
   async function deleteInvoice(id: string, e: React.MouseEvent) {
