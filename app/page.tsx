@@ -94,7 +94,7 @@ export default function Home() {
       fd2.append("invoiceId", invoice.id);
       const extRes = await fetch("/api/extract", { method: "POST", body: fd2 });
       setProcessing((p) => { const s = new Set(p); s.delete(invoice.id); return s; });
-      if (extRes.ok) { await new Promise(r => setTimeout(r, 500)); await loadInvoices(); }
+      if (extRes.ok) { await new Promise(r => setTimeout(r, 1500)); await loadInvoices(); await new Promise(r => setTimeout(r, 1000)); await loadInvoices(); }
     }
   }
 
