@@ -13,7 +13,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge st-${status}`}>{map[status] ?? status}</span>;
 }
 
-function syntaxHL(obj: unknown): string {
+function syntaxHL(obj: Record<string, unknown> | null): string {
   return JSON.stringify(obj, null, 2)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (m) => {
@@ -30,7 +30,7 @@ export default function Home() {
   const [localFields, setLocalFields] = useState<Record<string, { value: string; source: string; confidence: string | null }>>({});
   const [processing, setProcessing] = useState<Set<string>>(new Set());
   const [showExport, setShowExport] = useState(false);
-  const [exportPayload, setExportPayload] = useState<unknown>(null);
+  const [exportPayload, setExportPayload] = useState<Record<string, unknown> | null>(null);
   const [copyOk, setCopyOk] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -119,8 +119,9 @@ export default function Home() {
   const comp = active ? calcCompletion(valueMap) : { filled: 0, total: 0, pct: 0 };
   const isReady = comp.pct === 100;
 
+  type FieldDef = typeof FIELDS[number];
   // Group FIELDS into pairs for two-col layout
-  type FieldDef = typeof FIELDS[number]; const rows: (FieldDef | [FieldDef, FieldDef])[] = [];
+  const rows: (FieldDef | [FieldDef, FieldDef])[] = [];
   let i = 0;
   while (i < FIELDS.length) {
     const f = FIELDS[i];
