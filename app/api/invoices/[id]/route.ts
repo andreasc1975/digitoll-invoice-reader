@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { calcCompletion, buildDigitollJSON } from "@/lib/fields";
 
+// DELETE /api/invoices/[id] – delete invoice and its fields
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const db = supabaseAdmin();
+
+  // Delete file from storage if exists
+  const { data: invoice } = await db.from("invoices").select("file_path").eq("id", id).single();
+  if (invoice?.file_path) {
+    await db.storage.from("invoices").remove([invoice.file_path]);
+  }
+
+  // Delete invoice (cascades to invoice_fields and exports)
+  const { error } = await db.from("invoices").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}
+
 // PATCH /api/invoices/[id] – update a single field
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

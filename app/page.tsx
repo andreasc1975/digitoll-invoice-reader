@@ -53,6 +53,14 @@ export default function Home() {
     setLocalFields(map);
   }, [active?.id]); // eslint-disable-line
 
+  async function deleteInvoice(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Ta bort fakturan? Detta går inte att ångra.")) return;
+    await fetch(`/api/invoices/${id}`, { method: "DELETE" });
+    setInvoices((prev) => prev.filter((i) => i.id !== id));
+    if (activeId === id) setActiveId(null);
+  }
+
   async function handleFiles(files: FileList | null) {
     if (!files) return;
     for (const file of Array.from(files)) {
@@ -197,7 +205,14 @@ export default function Home() {
             const color = progressColor(pct);
             return (
               <div key={inv.id} className={`inv-card${activeId === inv.id ? " active" : ""}`} onClick={() => setActiveId(inv.id)}>
-                <div className="inv-name" title={inv.file_name}>{inv.file_name}</div>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 }}>
+                  <div className="inv-name" title={inv.file_name} style={{ flex: 1 }}>{inv.file_name}</div>
+                  <button
+                    onClick={(e) => deleteInvoice(inv.id, e)}
+                    title="Ta bort"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}
+                  >✕</button>
+                </div>
                 <div className="inv-meta">{fmtSize(inv.file_size)} · {fmtDate(inv.created_at)}</div>
                 {isProc ? (
                   <div style={{ fontSize: 11, color: "var(--blue)", display: "flex", alignItems: "center", gap: 5 }}>
