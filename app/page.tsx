@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FIELDS, calcCompletion, progressColor, buildDigitollJSON } from "@/lib/fields";
+import { SAD_FIELDS, calcSADCompletion } from "@/lib/sad-fields";
 
 interface FieldData { field_key: string; field_value: string | null; confidence: string | null; source: string; }
 interface Invoice { id: string; file_name: string; file_size: number; status: string; completion_pct: number; created_at: string; file_path: string | null; invoice_fields: FieldData[]; }
+
 function fmtSize(b: number) { if (b < 1024) return b + "B"; if (b < 1048576) return Math.round(b / 1024) + " KB"; return (b / 1048576).toFixed(1) + " MB"; }
 function fmtDate(s: string) { return new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); }
 
@@ -33,6 +35,7 @@ export default function Home() {
   const [copyOk, setCopyOk] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [fileUrl, setFileUrl] = useState<{ url: string; type: string } | null>(null);
+  const [mode, setMode] = useState<"digitoll" | "sad">("digitoll");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const active = invoices.find((i) => i.id === activeId) ?? null;
@@ -44,26 +47,26 @@ export default function Home() {
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!active) return;
     const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
     active.invoice_fields.forEach((f) => {
       map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
     });
     setLocalFields(map);
-    // Load file preview – retry a few times if file_path not yet set
-    const loadFile = async (retries = 5) => {
-      const res = await fetch(`/api/invoices/${active.id}/file`);
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        setFileUrl({ url, type: blob.type });
-      } else if (retries > 0) {
-        await new Promise(r => setTimeout(r, 1000));
-        loadFile(retries - 1);
-      }
-    };
-    loadFile();
+    // Load file preview from storage
+    if (active.file_path) {
+      fetch(`/api/invoices/${active.id}/file`)
+        .then((r) => r.ok ? r.blob() : null)
+        .then((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            setFileUrl({ url, type: blob.type });
+          }
+        });
+    } else {
+      setFileUrl(null);
+    }
   }, [active?.id]); // eslint-disable-line
 
   async function deleteInvoice(id: string, e: React.MouseEvent) {
@@ -168,8 +171,13 @@ useEffect(() => {
   const valueMap: Record<string, string | null> = {};
   if (active) {
     FIELDS.forEach((f) => { valueMap[f.key] = localFields[f.key]?.value ?? null; });
+    SAD_FIELDS.forEach((f) => { valueMap[`sad_${f.box}`] = localFields[`sad_${f.box}`]?.value ?? null; });
   }
-  const comp = active ? calcCompletion(valueMap) : { filled: 0, total: 0, pct: 0 };
+  const comp = active
+    ? mode === "digitoll"
+      ? calcCompletion(valueMap)
+      : calcSADCompletion(valueMap)
+    : { filled: 0, total: 0, pct: 0 };
   const isReady = comp.pct === 100;
 
   type FieldDef = typeof FIELDS[number];
@@ -180,6 +188,53 @@ useEffect(() => {
     if (f.half === "left" && i + 1 < FIELDS.length && FIELDS[i + 1].half === "right") {
       rows.push([f, FIELDS[i + 1]]); i += 2;
     } else { rows.push(f); i++; }
+  }
+
+  function renderSADField(f: typeof SAD_FIELDS[number]) {
+    const key = `sad_${f.box}`;
+    const fd = localFields[key];
+    const val = fd?.value ?? "";
+    const conf = fd?.confidence ?? null;
+    const isManual = fd?.source === "manual";
+    const isEmpty = !val.trim();
+    const showMissing = f.required && isEmpty && active && !processing.has(active.id);
+    let cls = "field-input";
+    if (showMissing) cls += " missing";
+    else if (isManual) cls += " manual";
+    else if (val) cls += " ai-filled";
+
+    let badge = null;
+    if (isManual) badge = <span className="conf-badge conf-manual">Manual</span>;
+    else if (conf === "high") badge = <span className="conf-badge conf-high">High confidence</span>;
+    else if (conf === "med") badge = <span className="conf-badge conf-med">Medium</span>;
+    else if (conf === "low") badge = <span className="conf-badge conf-low">Low confidence</span>;
+
+    return (
+      <div className="field-row" key={key}>
+        <div className="field-header">
+          <span className="field-label">
+            <span className="sad-box-label">Box {f.box} </span>
+            {f.label}
+            {f.required && <span className="req-mark">*</span>}
+            {!f.required && <span className="opt-mark">(optional)</span>}
+          </span>
+          {badge}
+        </div>
+        <input
+          className={cls}
+          value={val}
+          placeholder={f.placeholder ?? ""}
+          title={f.description}
+          onChange={(e) => {
+            setLocalFields((prev) => ({ ...prev, [key]: { value: e.target.value, source: "manual", confidence: null } }));
+          }}
+          onBlur={(e) => {
+            if (active) saveField(active.id, key, e.target.value);
+          }}
+        />
+        {showMissing && <div className="missing-msg">Required — please fill in this field</div>}
+      </div>
+    );
   }
 
   function renderField(f: typeof FIELDS[number]) {
@@ -293,6 +348,10 @@ useEffect(() => {
             <div className="main-header">
               <div className="doc-title" title={active.file_name}>{active.file_name}</div>
               <div className="header-actions">
+                <div className="mode-toggle">
+                  <button className={`mode-btn${mode === "digitoll" ? " active" : ""}`} onClick={() => setMode("digitoll")}>Digitoll</button>
+                  <button className={`mode-btn sad${mode === "sad" ? " active" : ""}`} onClick={() => setMode("sad")}>Full Declaration</button>
+                </div>
                 <StatusBadge status={active.status} />
                 {comp.total - comp.filled > 0 && (
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{comp.total - comp.filled} fields missing</span>
@@ -333,7 +392,7 @@ useEffect(() => {
                       <span className="spinner" style={{ width: 16, height: 16 }} />
                       <span>Extracting data from invoice...</span>
                     </div>
-                  ) : (
+                  ) : mode === "digitoll" ? (
                     rows.map((row) => {
                       if (Array.isArray(row)) {
                         const sec = row[0].section;
@@ -356,6 +415,40 @@ useEffect(() => {
                         );
                       }
                     })
+                  ) : (
+                    // SAD form – group by width
+                    (() => {
+                      const elements: React.ReactNode[] = [];
+                      let j = 0;
+                      while (j < SAD_FIELDS.length) {
+                        const f = SAD_FIELDS[j];
+                        if (f.width === "full") {
+                          elements.push(<div key={f.box}>{renderSADField(f)}</div>);
+                          j++;
+                        } else if (f.width === "half" && j + 1 < SAD_FIELDS.length && SAD_FIELDS[j + 1].width === "half") {
+                          const f2 = SAD_FIELDS[j + 1];
+                          elements.push(
+                            <div key={f.box} className="two-col">
+                              {renderSADField(f)}{renderSADField(f2)}
+                            </div>
+                          );
+                          j += 2;
+                        } else if (f.width === "third" && j + 2 < SAD_FIELDS.length && SAD_FIELDS[j + 1].width === "third" && SAD_FIELDS[j + 2].width === "third") {
+                          const f2 = SAD_FIELDS[j + 1];
+                          const f3 = SAD_FIELDS[j + 2];
+                          elements.push(
+                            <div key={f.box} className="three-col">
+                              {renderSADField(f)}{renderSADField(f2)}{renderSADField(f3)}
+                            </div>
+                          );
+                          j += 3;
+                        } else {
+                          elements.push(<div key={f.box}>{renderSADField(f)}</div>);
+                          j++;
+                        }
+                      }
+                      return elements;
+                    })()
                   )}
                 </div>
                 <div className="legend">
