@@ -33,6 +33,7 @@ export default function Home() {
   const [exportPayload, setExportPayload] = useState<Record<string, unknown> | null>(null);
   const [copyOk, setCopyOk] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [fileUrl, setFileUrl] = useState<{ url: string; type: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const active = invoices.find((i) => i.id === activeId) ?? null;
@@ -77,9 +78,12 @@ export default function Home() {
     handleFiles(e.dataTransfer.files);
   }
 
-async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null) {
     if (!files) return;
     for (const file of Array.from(files)) {
+      // Create local preview URL
+      const url = URL.createObjectURL(file);
+      setFileUrl({ url, type: file.type });
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/invoices", { method: "POST", body: fd });
@@ -94,22 +98,7 @@ async function handleFiles(files: FileList | null) {
       fd2.append("invoiceId", invoice.id);
       const extRes = await fetch("/api/extract", { method: "POST", body: fd2 });
       setProcessing((p) => { const s = new Set(p); s.delete(invoice.id); return s; });
-      if (extRes.ok) {
-        const fieldsRes = await fetch(`/api/invoices`);
-        if (fieldsRes.ok) {
-          const all: Invoice[] = await fieldsRes.json();
-          setInvoices(all);
-          const updated = all.find((i) => i.id === invoice.id);
-          if (updated) {
-            const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
-            updated.invoice_fields.forEach((f) => {
-              map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
-            });
-            setLocalFields(map);
-            setActiveId(invoice.id);
-          }
-        }
-      }
+      if (extRes.ok) { await new Promise(r => setTimeout(r, 500)); await loadInvoices(); }
     }
   }
 
@@ -292,41 +281,61 @@ async function handleFiles(files: FileList | null) {
               </div>
               <span className="banner-count" style={{ color: progressColor(comp.pct) }}>{comp.filled} / {comp.total} required fields</span>
             </div>
-            <div className="form-area">
-              {processing.has(active.id) ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", paddingTop: 24 }}>
-                  <span className="spinner" style={{ width: 16, height: 16 }} />
-                  <span>Extracting data from invoice...</span>
+            <div className="split-view">
+              {/* Document preview */}
+              <div className="doc-preview">
+                <div className="doc-preview-header">Source Document</div>
+                <div className="doc-preview-body">
+                  {fileUrl ? (
+                    fileUrl.type === "application/pdf" ? (
+                      <iframe src={fileUrl.url} title="Invoice preview" />
+                    ) : (
+                      <img src={fileUrl.url} alt="Invoice preview" />
+                    )
+                  ) : (
+                    <div className="doc-preview-empty">Upload an invoice to preview it here</div>
+                  )}
                 </div>
-              ) : (
-                rows.map((row) => {
-                  if (Array.isArray(row)) {
-                    const sec = row[0].section;
-                    const showSec = sec !== lastSection;
-                    lastSection = sec;
-                    return (
-                      <div key={row[0].key}>
-                        {showSec && <div className="section-label">{sec}</div>}
-                        <div className="two-col">{row.map(renderField)}</div>
-                      </div>
-                    );
-                  } else {
-                    const showSec = row.section !== lastSection;
-                    lastSection = row.section;
-                    return (
-                      <div key={row.key}>
-                        {showSec && <div className="section-label">{row.section}</div>}
-                        {renderField(row)}
-                      </div>
-                    );
-                  }
-                })
-              )}
-            </div>
-            <div className="legend">
-              <div className="legend-item"><div className="legend-line" style={{ background: "var(--blue)" }} /> AI suggestion</div>
-              <div className="legend-item"><div className="legend-line" style={{ background: "var(--green)" }} /> Manually edited</div>
-              <div className="legend-item"><div className="legend-line" style={{ background: "var(--red)" }} /> Required field missing</div>
+              </div>
+              {/* Form panel */}
+              <div className="form-panel">
+                <div className="form-area">
+                  {processing.has(active.id) ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", paddingTop: 24 }}>
+                      <span className="spinner" style={{ width: 16, height: 16 }} />
+                      <span>Extracting data from invoice...</span>
+                    </div>
+                  ) : (
+                    rows.map((row) => {
+                      if (Array.isArray(row)) {
+                        const sec = row[0].section;
+                        const showSec = sec !== lastSection;
+                        lastSection = sec;
+                        return (
+                          <div key={row[0].key}>
+                            {showSec && <div className="section-label">{sec}</div>}
+                            <div className="two-col">{row.map(renderField)}</div>
+                          </div>
+                        );
+                      } else {
+                        const showSec = row.section !== lastSection;
+                        lastSection = row.section;
+                        return (
+                          <div key={row.key}>
+                            {showSec && <div className="section-label">{row.section}</div>}
+                            {renderField(row)}
+                          </div>
+                        );
+                      }
+                    })
+                  )}
+                </div>
+                <div className="legend">
+                  <div className="legend-item"><div className="legend-line" style={{ background: "var(--blue)" }} /> AI suggestion</div>
+                  <div className="legend-item"><div className="legend-line" style={{ background: "var(--green)" }} /> Manually edited</div>
+                  <div className="legend-item"><div className="legend-line" style={{ background: "var(--red)" }} /> Required field missing</div>
+                </div>
+              </div>
             </div>
           </>
         )}
