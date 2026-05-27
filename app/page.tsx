@@ -52,6 +52,19 @@ export default function Home() {
       map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
     });
     setLocalFields(map);
+    // Load file preview from storage
+    if (active.file_path) {
+      fetch(`/api/invoices/${active.id}/file`)
+        .then((r) => r.ok ? r.blob() : null)
+        .then((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            setFileUrl({ url, type: blob.type });
+          }
+        });
+    } else {
+      setFileUrl(null);
+    }
   }, [active?.id]); // eslint-disable-line
 
   async function deleteInvoice(id: string, e: React.MouseEvent) {
@@ -81,9 +94,10 @@ export default function Home() {
   async function handleFiles(files: FileList | null) {
     if (!files) return;
     for (const file of Array.from(files)) {
-      // Create local preview URL
+      // Create local preview URL immediately
       const url = URL.createObjectURL(file);
       setFileUrl({ url, type: file.type });
+
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/invoices", { method: "POST", body: fd });
@@ -98,7 +112,22 @@ export default function Home() {
       fd2.append("invoiceId", invoice.id);
       const extRes = await fetch("/api/extract", { method: "POST", body: fd2 });
       setProcessing((p) => { const s = new Set(p); s.delete(invoice.id); return s; });
-      if (extRes.ok) { await new Promise(r => setTimeout(r, 500)); await loadInvoices(); }
+      if (extRes.ok) {
+        const fieldsRes = await fetch(`/api/invoices`);
+        if (fieldsRes.ok) {
+          const all: Invoice[] = await fieldsRes.json();
+          setInvoices(all);
+          const updated = all.find((i) => i.id === invoice.id);
+          if (updated) {
+            const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
+            updated.invoice_fields.forEach((f) => {
+              map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
+            });
+            setLocalFields(map);
+            setActiveId(invoice.id);
+          }
+        }
+      }
     }
   }
 
