@@ -77,7 +77,7 @@ export default function Home() {
     handleFiles(e.dataTransfer.files);
   }
 
-  async function handleFiles(files: FileList | null) {
+async function handleFiles(files: FileList | null) {
     if (!files) return;
     for (const file of Array.from(files)) {
       const fd = new FormData();
@@ -94,7 +94,22 @@ export default function Home() {
       fd2.append("invoiceId", invoice.id);
       const extRes = await fetch("/api/extract", { method: "POST", body: fd2 });
       setProcessing((p) => { const s = new Set(p); s.delete(invoice.id); return s; });
-      if (extRes.ok) { await new Promise(r => setTimeout(r, 1500)); await loadInvoices(); await new Promise(r => setTimeout(r, 1000)); await loadInvoices(); }
+      if (extRes.ok) {
+        const fieldsRes = await fetch(`/api/invoices`);
+        if (fieldsRes.ok) {
+          const all: Invoice[] = await fieldsRes.json();
+          setInvoices(all);
+          const updated = all.find((i) => i.id === invoice.id);
+          if (updated) {
+            const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
+            updated.invoice_fields.forEach((f) => {
+              map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
+            });
+            setLocalFields(map);
+            setActiveId(invoice.id);
+          }
+        }
+      }
     }
   }
 
