@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FIELDS, calcCompletion, progressColor, buildDigitollJSON } from "@/lib/fields";
 import { SAD_FIELDS, calcSADCompletion } from "@/lib/sad-fields";
-import ItemsTable from "@/components/ItemsTable";
+import ItemsTable from "../components/ItemsTable";
 
 interface FieldData { field_key: string; field_value: string | null; confidence: string | null; source: string; }
 interface Invoice { id: string; file_name: string; file_size: number; status: string; completion_pct: number; created_at: string; file_path: string | null; invoice_fields: FieldData[]; }
