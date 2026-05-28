@@ -5,7 +5,7 @@ import { calcCompletion } from "@/lib/fields";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const SYSTEM_PROMPT = "You are a customs data extraction specialist. Extract fields from invoice documents for both Digitoll electronic declarations and full SAD (Single Administrative Document) customs declarations. Extract ONLY what is explicitly stated. If a field is not found, return null. Confidence: high=clearly stated, med=inferred, low=uncertain. Return ONLY valid JSON with two sections: 'digitoll' and 'sad'. Example structure: {\"digitoll\":{\"exp_name\":{\"value\":\"...\",\"confidence\":\"high\"},\"exp_address\":{\"value\":\"...\",\"confidence\":\"high\"},\"imp_name\":{\"value\":\"...\",\"confidence\":\"high\"},\"imp_address\":{\"value\":\"...\",\"confidence\":\"high\"},\"imp_id\":{\"value\":null,\"confidence\":\"low\"},\"totalValue\":{\"value\":\"...\",\"confidence\":\"high\"},\"currency\":{\"value\":\"...\",\"confidence\":\"high\"},\"totalNetWeight\":{\"value\":\"...\",\"confidence\":\"high\"},\"totalGrossWeight\":{\"value\":\"...\",\"confidence\":\"high\"},\"hsCode\":{\"value\":null,\"confidence\":\"low\"},\"originCountry\":{\"value\":\"...\",\"confidence\":\"high\"},\"destinationCountry\":{\"value\":\"...\",\"confidence\":\"high\"},\"customsValue\":{\"value\":\"...\",\"confidence\":\"high\"},\"procedureCode\":{\"value\":null,\"confidence\":\"low\"},\"modeOfTransport\":{\"value\":\"...\",\"confidence\":\"high\"},\"incoterm\":{\"value\":\"...\",\"confidence\":\"high\"},\"incotermPlace\":{\"value\":\"...\",\"confidence\":\"high\"},\"transportRef\":{\"value\":null,\"confidence\":\"low\"}},\"sad\":{\"1\":{\"value\":null,\"confidence\":\"low\"},\"2\":{\"value\":\"...\",\"confidence\":\"high\"},\"3\":{\"value\":null,\"confidence\":\"low\"},\"4\":{\"value\":null,\"confidence\":\"low\"},\"5\":{\"value\":\"...\",\"confidence\":\"high\"},\"6\":{\"value\":\"...\",\"confidence\":\"high\"},\"7\":{\"value\":null,\"confidence\":\"low\"},\"8\":{\"value\":\"...\",\"confidence\":\"high\"},\"9\":{\"value\":null,\"confidence\":\"low\"},\"10\":{\"value\":null,\"confidence\":\"low\"},\"11\":{\"value\":null,\"confidence\":\"low\"},\"12\":{\"value\":\"...\",\"confidence\":\"high\"},\"13\":{\"value\":null,\"confidence\":\"low\"},\"14\":{\"value\":null,\"confidence\":\"low\"},\"15\":{\"value\":\"...\",\"confidence\":\"high\"},\"15a\":{\"value\":\"...\",\"confidence\":\"high\"},\"16\":{\"value\":\"...\",\"confidence\":\"high\"},\"17\":{\"value\":\"...\",\"confidence\":\"high\"},\"17a\":{\"value\":\"...\",\"confidence\":\"high\"},\"18\":{\"value\":null,\"confidence\":\"low\"},\"19\":{\"value\":null,\"confidence\":\"low\"},\"20\":{\"value\":\"...\",\"confidence\":\"high\"},\"21\":{\"value\":null,\"confidence\":\"low\"},\"22\":{\"value\":\"...\",\"confidence\":\"high\"},\"23\":{\"value\":null,\"confidence\":\"low\"},\"24\":{\"value\":null,\"confidence\":\"low\"},\"25\":{\"value\":\"...\",\"confidence\":\"high\"},\"26\":{\"value\":null,\"confidence\":\"low\"},\"27\":{\"value\":null,\"confidence\":\"low\"},\"28\":{\"value\":null,\"confidence\":\"low\"},\"29\":{\"value\":null,\"confidence\":\"low\"},\"30\":{\"value\":null,\"confidence\":\"low\"},\"31\":{\"value\":\"...\",\"confidence\":\"high\"},\"32\":{\"value\":null,\"confidence\":\"low\"},\"33\":{\"value\":\"...\",\"confidence\":\"high\"},\"34\":{\"value\":\"...\",\"confidence\":\"high\"},\"34a\":{\"value\":\"...\",\"confidence\":\"high\"},\"35\":{\"value\":\"...\",\"confidence\":\"high\"},\"36\":{\"value\":null,\"confidence\":\"low\"},\"37\":{\"value\":null,\"confidence\":\"low\"},\"38\":{\"value\":\"...\",\"confidence\":\"high\"},\"39\":{\"value\":null,\"confidence\":\"low\"},\"40\":{\"value\":null,\"confidence\":\"low\"},\"41\":{\"value\":null,\"confidence\":\"low\"},\"42\":{\"value\":\"...\",\"confidence\":\"high\"},\"43\":{\"value\":null,\"confidence\":\"low\"},\"44\":{\"value\":null,\"confidence\":\"low\"},\"45\":{\"value\":null,\"confidence\":\"low\"},\"46\":{\"value\":\"...\",\"confidence\":\"high\"},\"47\":{\"value\":null,\"confidence\":\"low\"},\"48\":{\"value\":null,\"confidence\":\"low\"},\"49\":{\"value\":null,\"confidence\":\"low\"},\"50\":{\"value\":null,\"confidence\":\"low\"},\"51\":{\"value\":null,\"confidence\":\"low\"},\"52\":{\"value\":null,\"confidence\":\"low\"},\"53\":{\"value\":null,\"confidence\":\"low\"},\"54\":{\"value\":null,\"confidence\":\"low\"}}}";
+const SYSTEM_PROMPT = "You are a customs data extraction specialist. Extract fields from invoice documents for Digitoll electronic declarations, full SAD customs declarations, and individual line items. Return ONLY valid JSON with three sections: digitoll, sad, and items. The items array contains individual goods/article lines found in the invoice. Example: {\"digitoll\":{\"exp_name\":{\"value\":\"Company AB\",\"confidence\":\"high\"},\"exp_address\":{\"value\":\"Street 1, City\",\"confidence\":\"high\"},\"imp_name\":{\"value\":null,\"confidence\":\"low\"},\"imp_address\":{\"value\":null,\"confidence\":\"low\"},\"imp_id\":{\"value\":null,\"confidence\":\"low\"},\"totalValue\":{\"value\":\"10500\",\"confidence\":\"high\"},\"currency\":{\"value\":\"EUR\",\"confidence\":\"high\"},\"totalNetWeight\":{\"value\":\"950\",\"confidence\":\"high\"},\"totalGrossWeight\":{\"value\":\"1050\",\"confidence\":\"high\"},\"hsCode\":{\"value\":null,\"confidence\":\"low\"},\"originCountry\":{\"value\":\"SE\",\"confidence\":\"high\"},\"destinationCountry\":{\"value\":\"NO\",\"confidence\":\"high\"},\"customsValue\":{\"value\":\"10500\",\"confidence\":\"high\"},\"procedureCode\":{\"value\":null,\"confidence\":\"low\"},\"modeOfTransport\":{\"value\":\"Road\",\"confidence\":\"high\"},\"incoterm\":{\"value\":\"DAP\",\"confidence\":\"high\"},\"incotermPlace\":{\"value\":\"Oslo\",\"confidence\":\"high\"},\"transportRef\":{\"value\":null,\"confidence\":\"low\"}},\"sad\":{\"1\":{\"value\":null,\"confidence\":\"low\"},\"2\":{\"value\":\"Company AB, Street 1\",\"confidence\":\"high\"},\"3\":{\"value\":null,\"confidence\":\"low\"},\"4\":{\"value\":null,\"confidence\":\"low\"},\"5\":{\"value\":\"1\",\"confidence\":\"high\"},\"6\":{\"value\":\"101\",\"confidence\":\"high\"},\"7\":{\"value\":null,\"confidence\":\"low\"},\"8\":{\"value\":null,\"confidence\":\"low\"},\"9\":{\"value\":null,\"confidence\":\"low\"},\"10\":{\"value\":null,\"confidence\":\"low\"},\"11\":{\"value\":null,\"confidence\":\"low\"},\"12\":{\"value\":\"EUR\",\"confidence\":\"high\"},\"13\":{\"value\":null,\"confidence\":\"low\"},\"14\":{\"value\":null,\"confidence\":\"low\"},\"15\":{\"value\":\"SE\",\"confidence\":\"high\"},\"15a\":{\"value\":\"SE\",\"confidence\":\"high\"},\"16\":{\"value\":\"SE\",\"confidence\":\"high\"},\"17\":{\"value\":\"NO\",\"confidence\":\"high\"},\"17a\":{\"value\":\"NO\",\"confidence\":\"high\"},\"18\":{\"value\":null,\"confidence\":\"low\"},\"19\":{\"value\":null,\"confidence\":\"low\"},\"20\":{\"value\":\"DAP Oslo\",\"confidence\":\"high\"},\"21\":{\"value\":null,\"confidence\":\"low\"},\"22\":{\"value\":\"EUR 10500\",\"confidence\":\"high\"},\"23\":{\"value\":null,\"confidence\":\"low\"},\"24\":{\"value\":null,\"confidence\":\"low\"},\"25\":{\"value\":\"3\",\"confidence\":\"high\"},\"26\":{\"value\":null,\"confidence\":\"low\"},\"27\":{\"value\":null,\"confidence\":\"low\"},\"28\":{\"value\":null,\"confidence\":\"low\"},\"29\":{\"value\":null,\"confidence\":\"low\"},\"30\":{\"value\":null,\"confidence\":\"low\"},\"31\":{\"value\":\"Industrial components\",\"confidence\":\"high\"},\"32\":{\"value\":null,\"confidence\":\"low\"},\"33\":{\"value\":null,\"confidence\":\"low\"},\"34\":{\"value\":\"SE\",\"confidence\":\"high\"},\"34a\":{\"value\":\"Sweden\",\"confidence\":\"high\"},\"35\":{\"value\":\"1050\",\"confidence\":\"high\"},\"36\":{\"value\":null,\"confidence\":\"low\"},\"37\":{\"value\":null,\"confidence\":\"low\"},\"38\":{\"value\":\"950\",\"confidence\":\"high\"},\"39\":{\"value\":null,\"confidence\":\"low\"},\"40\":{\"value\":null,\"confidence\":\"low\"},\"41\":{\"value\":\"101\",\"confidence\":\"high\"},\"42\":{\"value\":\"10500\",\"confidence\":\"high\"},\"43\":{\"value\":null,\"confidence\":\"low\"},\"44\":{\"value\":null,\"confidence\":\"low\"},\"45\":{\"value\":null,\"confidence\":\"low\"},\"46\":{\"value\":\"10500\",\"confidence\":\"high\"},\"47\":{\"value\":null,\"confidence\":\"low\"},\"48\":{\"value\":null,\"confidence\":\"low\"},\"49\":{\"value\":null,\"confidence\":\"low\"},\"50\":{\"value\":null,\"confidence\":\"low\"},\"51\":{\"value\":null,\"confidence\":\"low\"},\"52\":{\"value\":null,\"confidence\":\"low\"},\"53\":{\"value\":null,\"confidence\":\"low\"},\"54\":{\"value\":null,\"confidence\":\"low\"}},\"items\":[{\"article\":\"Industrial components\",\"description\":\"Industrial components for machinery\",\"hs_code\":null,\"origin_country\":\"SE\",\"procedure_code\":null,\"no_of_parcels\":101,\"net_weight\":950,\"gross_weight\":1050,\"amount\":10500,\"currency\":\"EUR\",\"quantity\":101,\"quantity_unit\":\"pieces\",\"marks_and_numbers\":null}]}";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 4000,
+      max_tokens: 6000,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -33,13 +33,16 @@ export async function POST(req: NextRequest) {
             isPdf
               ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
               : { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            { type: "text", text: "Extract all Digitoll and SAD customs fields from this invoice document." },
+            { type: "text", text: "Extract all Digitoll fields, SAD box fields, and individual line items from this invoice." },
           ] as Anthropic.MessageParam["content"],
         },
       ],
     });
 
-    const rawText = message.content.filter((b) => b.type === "text").map((b) => (b as Anthropic.TextBlock).text).join("");
+    const rawText = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as Anthropic.TextBlock).text)
+      .join("");
     const clean = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
 
@@ -62,16 +65,27 @@ export async function POST(req: NextRequest) {
 
     await db.from("invoice_fields").upsert(upsertRows, { onConflict: "invoice_id,field_key" });
 
-    // Calculate Digitoll completion
+    // Save items
+    const items = parsed.items || [];
+    if (items.length > 0) {
+      await db.from("invoice_items").delete().eq("invoice_id", invoiceId);
+      const itemRows = items.map((item: Record<string, unknown>, idx: number) => ({
+        ...item,
+        invoice_id: invoiceId,
+        line_nr: idx + 1,
+      }));
+      await db.from("invoice_items").insert(itemRows);
+    }
+
+    // Calculate completion
     const valueMap: Record<string, string | null> = {};
     Object.entries(digitollFields).forEach(([k, v]: [string, unknown]) => {
       valueMap[k] = (v as { value: string | null }).value;
     });
     const { pct } = calcCompletion(valueMap);
-
     await db.from("invoices").update({ status: "extracted", completion_pct: pct }).eq("id", invoiceId);
 
-    return NextResponse.json({ success: true, completionPct: pct });
+    return NextResponse.json({ success: true, completionPct: pct, itemCount: items.length });
   } catch (err) {
     console.error("Extract error:", err);
     return NextResponse.json({ error: "Extraction failed" }, { status: 500 });
