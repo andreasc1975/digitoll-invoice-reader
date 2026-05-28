@@ -5,7 +5,54 @@ import { calcCompletion } from "@/lib/fields";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const SYSTEM_PROMPT = "You are a customs data extraction specialist. Extract fields from invoice documents for Digitoll electronic declarations, full SAD customs declarations, and individual line items. Return ONLY valid JSON with three sections: digitoll, sad, and items. The items array contains individual goods/article lines found in the invoice. Example: {\"digitoll\":{\"exp_name\":{\"value\":\"Company AB\",\"confidence\":\"high\"},\"exp_address\":{\"value\":\"Street 1, City\",\"confidence\":\"high\"},\"imp_name\":{\"value\":null,\"confidence\":\"low\"},\"imp_address\":{\"value\":null,\"confidence\":\"low\"},\"imp_id\":{\"value\":null,\"confidence\":\"low\"},\"totalValue\":{\"value\":\"10500\",\"confidence\":\"high\"},\"currency\":{\"value\":\"EUR\",\"confidence\":\"high\"},\"totalNetWeight\":{\"value\":\"950\",\"confidence\":\"high\"},\"totalGrossWeight\":{\"value\":\"1050\",\"confidence\":\"high\"},\"hsCode\":{\"value\":null,\"confidence\":\"low\"},\"originCountry\":{\"value\":\"SE\",\"confidence\":\"high\"},\"destinationCountry\":{\"value\":\"NO\",\"confidence\":\"high\"},\"customsValue\":{\"value\":\"10500\",\"confidence\":\"high\"},\"procedureCode\":{\"value\":null,\"confidence\":\"low\"},\"modeOfTransport\":{\"value\":\"Road\",\"confidence\":\"high\"},\"incoterm\":{\"value\":\"DAP\",\"confidence\":\"high\"},\"incotermPlace\":{\"value\":\"Oslo\",\"confidence\":\"high\"},\"transportRef\":{\"value\":null,\"confidence\":\"low\"}},\"sad\":{\"1\":{\"value\":null,\"confidence\":\"low\"},\"2\":{\"value\":\"Company AB, Street 1\",\"confidence\":\"high\"},\"3\":{\"value\":null,\"confidence\":\"low\"},\"4\":{\"value\":null,\"confidence\":\"low\"},\"5\":{\"value\":\"1\",\"confidence\":\"high\"},\"6\":{\"value\":\"101\",\"confidence\":\"high\"},\"7\":{\"value\":null,\"confidence\":\"low\"},\"8\":{\"value\":null,\"confidence\":\"low\"},\"9\":{\"value\":null,\"confidence\":\"low\"},\"10\":{\"value\":null,\"confidence\":\"low\"},\"11\":{\"value\":null,\"confidence\":\"low\"},\"12\":{\"value\":\"EUR\",\"confidence\":\"high\"},\"13\":{\"value\":null,\"confidence\":\"low\"},\"14\":{\"value\":null,\"confidence\":\"low\"},\"15\":{\"value\":\"SE\",\"confidence\":\"high\"},\"15a\":{\"value\":\"SE\",\"confidence\":\"high\"},\"16\":{\"value\":\"SE\",\"confidence\":\"high\"},\"17\":{\"value\":\"NO\",\"confidence\":\"high\"},\"17a\":{\"value\":\"NO\",\"confidence\":\"high\"},\"18\":{\"value\":null,\"confidence\":\"low\"},\"19\":{\"value\":null,\"confidence\":\"low\"},\"20\":{\"value\":\"DAP Oslo\",\"confidence\":\"high\"},\"21\":{\"value\":null,\"confidence\":\"low\"},\"22\":{\"value\":\"EUR 10500\",\"confidence\":\"high\"},\"23\":{\"value\":null,\"confidence\":\"low\"},\"24\":{\"value\":null,\"confidence\":\"low\"},\"25\":{\"value\":\"3\",\"confidence\":\"high\"},\"26\":{\"value\":null,\"confidence\":\"low\"},\"27\":{\"value\":null,\"confidence\":\"low\"},\"28\":{\"value\":null,\"confidence\":\"low\"},\"29\":{\"value\":null,\"confidence\":\"low\"},\"30\":{\"value\":null,\"confidence\":\"low\"},\"31\":{\"value\":\"Industrial components\",\"confidence\":\"high\"},\"32\":{\"value\":null,\"confidence\":\"low\"},\"33\":{\"value\":null,\"confidence\":\"low\"},\"34\":{\"value\":\"SE\",\"confidence\":\"high\"},\"34a\":{\"value\":\"Sweden\",\"confidence\":\"high\"},\"35\":{\"value\":\"1050\",\"confidence\":\"high\"},\"36\":{\"value\":null,\"confidence\":\"low\"},\"37\":{\"value\":null,\"confidence\":\"low\"},\"38\":{\"value\":\"950\",\"confidence\":\"high\"},\"39\":{\"value\":null,\"confidence\":\"low\"},\"40\":{\"value\":null,\"confidence\":\"low\"},\"41\":{\"value\":\"101\",\"confidence\":\"high\"},\"42\":{\"value\":\"10500\",\"confidence\":\"high\"},\"43\":{\"value\":null,\"confidence\":\"low\"},\"44\":{\"value\":null,\"confidence\":\"low\"},\"45\":{\"value\":null,\"confidence\":\"low\"},\"46\":{\"value\":\"10500\",\"confidence\":\"high\"},\"47\":{\"value\":null,\"confidence\":\"low\"},\"48\":{\"value\":null,\"confidence\":\"low\"},\"49\":{\"value\":null,\"confidence\":\"low\"},\"50\":{\"value\":null,\"confidence\":\"low\"},\"51\":{\"value\":null,\"confidence\":\"low\"},\"52\":{\"value\":null,\"confidence\":\"low\"},\"53\":{\"value\":null,\"confidence\":\"low\"},\"54\":{\"value\":null,\"confidence\":\"low\"}},\"items\":[{\"article\":\"Industrial components\",\"description\":\"Industrial components for machinery\",\"hs_code\":null,\"origin_country\":\"SE\",\"procedure_code\":null,\"no_of_parcels\":101,\"net_weight\":950,\"gross_weight\":1050,\"amount\":10500,\"currency\":\"EUR\",\"quantity\":101,\"quantity_unit\":\"pieces\",\"marks_and_numbers\":null}]}";
+const SYSTEM_PROMPT = `You are a customs data extraction specialist. Extract fields from invoice documents and return ONLY raw JSON with no markdown, no backticks, no explanation.
+
+Return exactly this structure:
+{
+  "digitoll": {
+    "exp_name": {"value": "...", "confidence": "high|med|low"},
+    "exp_address": {"value": "...", "confidence": "high|med|low"},
+    "imp_name": {"value": "...", "confidence": "high|med|low"},
+    "imp_address": {"value": "...", "confidence": "high|med|low"},
+    "imp_id": {"value": null, "confidence": "low"},
+    "totalValue": {"value": "...", "confidence": "high|med|low"},
+    "currency": {"value": "...", "confidence": "high|med|low"},
+    "totalNetWeight": {"value": "...", "confidence": "high|med|low"},
+    "totalGrossWeight": {"value": "...", "confidence": "high|med|low"},
+    "hsCode": {"value": null, "confidence": "low"},
+    "originCountry": {"value": "...", "confidence": "high|med|low"},
+    "destinationCountry": {"value": "...", "confidence": "high|med|low"},
+    "customsValue": {"value": "...", "confidence": "high|med|low"},
+    "procedureCode": {"value": null, "confidence": "low"},
+    "modeOfTransport": {"value": "...", "confidence": "high|med|low"},
+    "incoterm": {"value": "...", "confidence": "high|med|low"},
+    "incotermPlace": {"value": "...", "confidence": "high|med|low"},
+    "transportRef": {"value": null, "confidence": "low"}
+  },
+  "sad": {
+    "2": {"value": "...", "confidence": "high|med|low"},
+    "8": {"value": "...", "confidence": "high|med|low"}
+  },
+  "items": [
+    {
+      "article": "...",
+      "description": "...",
+      "hs_code": null,
+      "origin_country": "SE",
+      "procedure_code": null,
+      "no_of_parcels": 10,
+      "net_weight": 100.5,
+      "gross_weight": 110.0,
+      "amount": 5000.0,
+      "currency": "EUR",
+      "quantity": 10,
+      "quantity_unit": "pieces",
+      "marks_and_numbers": null
+    }
+  ]
+}
+
+Use null for unknown values. All numeric fields (no_of_parcels, net_weight, gross_weight, amount, quantity) must be numbers, never empty strings.`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,60 +73,90 @@ export async function POST(req: NextRequest) {
       model: "claude-sonnet-4-5",
       max_tokens: 6000,
       system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: [
-            isPdf
-              ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
-              : { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            { type: "text", text: "Extract all Digitoll fields, SAD box fields, and individual line items from this invoice." },
-          ] as Anthropic.MessageParam["content"],
-        },
-      ],
+      messages: [{
+        role: "user",
+        content: [
+          isPdf
+            ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
+            : { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: 'Extract all Digitoll fields, SAD box fields, and individual line items. Return ONLY raw JSON: {"digitoll":{...},"sad":{...},"items":[...]}' },
+        ] as Anthropic.MessageParam["content"],
+      }],
     });
 
     const rawText = message.content
       .filter((b) => b.type === "text")
       .map((b) => (b as Anthropic.TextBlock).text)
       .join("");
-    const clean = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+
+    const clean = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+
+    let parsed: { digitoll?: Record<string, unknown>; sad?: Record<string, unknown>; items?: Record<string, unknown>[] };
+    try {
+      parsed = JSON.parse(clean);
+    } catch {
+      console.error("JSON parse failed. Raw:", rawText.slice(0, 500));
+      return NextResponse.json({ error: "AI returned invalid JSON", raw: rawText.slice(0, 300) }, { status: 422 });
+    }
+
+    console.log("Parsed digitoll keys:", Object.keys(parsed.digitoll ?? {}));
 
     const db = supabaseAdmin();
     const upsertRows: { invoice_id: string; field_key: string; field_value: string | null; confidence: string; source: string }[] = [];
 
-    // Digitoll fields
-    const digitollFields = parsed.digitoll || {};
-    Object.entries(digitollFields).forEach(([key, data]: [string, unknown]) => {
+    const digitollFields = parsed.digitoll ?? {};
+    for (const [key, data] of Object.entries(digitollFields)) {
+      if (!data || typeof data !== "object") continue;
       const d = data as { value: string | null; confidence: string };
-      upsertRows.push({ invoice_id: invoiceId, field_key: key, field_value: d.value, confidence: d.confidence, source: "ai" });
-    });
+      upsertRows.push({ invoice_id: invoiceId, field_key: key, field_value: d.value ?? null, confidence: d.confidence ?? "low", source: "ai" });
+    }
 
-    // SAD fields
-    const sadFields = parsed.sad || {};
-    Object.entries(sadFields).forEach(([key, data]: [string, unknown]) => {
+    const sadFields = parsed.sad ?? {};
+    for (const [key, data] of Object.entries(sadFields)) {
+      if (!data || typeof data !== "object") continue;
       const d = data as { value: string | null; confidence: string };
-      upsertRows.push({ invoice_id: invoiceId, field_key: `sad_${key}`, field_value: d.value, confidence: d.confidence, source: "ai" });
-    });
+      upsertRows.push({ invoice_id: invoiceId, field_key: `sad_${key}`, field_value: d.value ?? null, confidence: d.confidence ?? "low", source: "ai" });
+    }
 
-    await db.from("invoice_fields").upsert(upsertRows, { onConflict: "invoice_id,field_key" });
+    console.log("Total upsertRows:", upsertRows.length);
 
-    // Save items
-    const items = parsed.items || [];
+    if (upsertRows.length > 0) {
+      const { error: fieldsError } = await db
+        .from("invoice_fields")
+        .upsert(upsertRows, { onConflict: "invoice_id,field_key" });
+      console.log("UPSERT error:", JSON.stringify(fieldsError));
+      console.log("First row:", JSON.stringify(upsertRows[0]));
+      if (fieldsError) {
+        return NextResponse.json({ error: "DB error saving fields", detail: fieldsError.message }, { status: 500 });
+      }
+    }
+
+    const items = parsed.items ?? [];
     if (items.length > 0) {
       await db.from("invoice_items").delete().eq("invoice_id", invoiceId);
       const itemRows = items.map((item: Record<string, unknown>, idx: number) => ({
-        ...item,
         invoice_id: invoiceId,
         line_nr: idx + 1,
+        article:           item.article ?? null,
+        description:       item.description ?? null,
+        hs_code:           item.hs_code ?? null,
+        origin_country:    item.origin_country ?? null,
+        procedure_code:    item.procedure_code ?? null,
+        no_of_parcels:     item.no_of_parcels ?? null,
+        net_weight:        item.net_weight ?? null,
+        gross_weight:      item.gross_weight ?? null,
+        amount:            item.amount ?? null,
+        currency:          item.currency ?? null,
+        quantity:          item.quantity ?? null,
+        quantity_unit:     item.quantity_unit ?? null,
+        marks_and_numbers: item.marks_and_numbers ?? null,
       }));
-      await db.from("invoice_items").insert(itemRows);
+      const { error: insertError } = await db.from("invoice_items").insert(itemRows);
+      if (insertError) console.error("invoice_items insert error:", insertError);
     }
 
-    // Calculate completion
     const valueMap: Record<string, string | null> = {};
-    Object.entries(digitollFields).forEach(([k, v]: [string, unknown]) => {
+    Object.entries(digitollFields).forEach(([k, v]) => {
       valueMap[k] = (v as { value: string | null }).value;
     });
     const { pct } = calcCompletion(valueMap);
@@ -87,7 +164,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, completionPct: pct, itemCount: items.length });
   } catch (err) {
-    console.error("Extract error:", err);
-    return NextResponse.json({ error: "Extraction failed" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Extract error:", msg);
+    return NextResponse.json({ error: "Extraction failed", detail: msg }, { status: 500 });
   }
 }
