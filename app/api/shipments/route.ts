@@ -7,6 +7,7 @@ export async function GET() {
     .from("shipments")
     .select(`*, transports(id, reference, status), invoices(id, file_name, completion_pct)`)
     .order("created_at", { ascending: false });
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
@@ -14,10 +15,24 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const db = supabaseAdmin();
   const body = await req.json();
+
   const { data, error } = await db
     .from("shipments")
-    .insert({ reference: body.reference, transport_id: body.transport_id || null, border_crossing: body.border_crossing || null, eta: body.eta || null, carrier: body.carrier || null, responsible: body.responsible || null, actor: body.actor || null, own_transport: body.own_transport || false, status: "incomplete", declaration_status: "none" })
-    .select().single();
+    .insert({
+      reference:       body.reference,
+      transport_id:    body.transport_id || null,
+      border_crossing: body.border_crossing || null,
+      eta:             body.eta || null,
+      carrier:         body.carrier || null,
+      responsible:     body.responsible || null,
+      actor:           body.actor || null,
+      own_transport:   body.own_transport || false,
+      status:          "incomplete",
+      declaration_status: "none",
+    })
+    .select()
+    .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
