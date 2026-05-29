@@ -150,7 +150,7 @@ function Overlay({ open, onClose, children, wide }: { open: boolean; onClose: ()
 
 function ModalHeader({ title, subtitle, onClose }: { title: string; subtitle?: string; onClose: () => void }) {
   return (
-    <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+    <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, position: "sticky", top: 0, background: "#fff", zIndex: 10 }}>
       <div>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{title}</h3>
         {subtitle && <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667085" }}>{subtitle}</p>}
@@ -161,7 +161,7 @@ function ModalHeader({ title, subtitle, onClose }: { title: string; subtitle?: s
 }
 
 function ModalFooter({ children }: { children: React.ReactNode }) {
-  return <div style={{ padding: "14px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>{children}</div>;
+  return <div style={{ padding: "14px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8, position: "sticky", bottom: 0, background: "#fff", zIndex: 10 }}>{children}</div>;
 }
 
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -704,11 +704,7 @@ export default function DigitollStart() {
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ marginBottom: 4 }}><StatusPill status={activeTr?.status ?? ""} /></div>
           <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
-          {trLinkedShipments.length > 0 && (
-            <div style={{ background: "#ECFDF3", border: "1px solid #A9EFC5", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#027A48" }}>
-              {trLinkedShipments.length} shipment{trLinkedShipments.length > 1 ? "s" : ""} selected
-            </div>
-          )}
+
         </div>
         <ModalFooter>
           <button style={btnSec} onClick={close}>Cancel</button>
