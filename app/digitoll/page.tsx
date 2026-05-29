@@ -177,42 +177,99 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 function ShipmentPickerTable({ shipments, selected, onToggle, search, onSearch }: {
   shipments: Shipment[]; selected: string[]; onToggle: (id: string) => void; search: string; onSearch: (v: string) => void;
 }) {
-  const filtered = shipments.filter(s => !search || s.reference.toLowerCase().includes(search.toLowerCase()) || (s.actor ?? "").toLowerCase().includes(search.toLowerCase()));
+  const [selectedExpanded, setSelectedExpanded] = useState(false);
+
+  const selectedShipments = shipments.filter(s => selected.includes(s.id));
+  const unselected = shipments.filter(s =>
+    !selected.includes(s.id) &&
+    (!search || s.reference.toLowerCase().includes(search.toLowerCase()) || (s.actor ?? "").toLowerCase().includes(search.toLowerCase()))
+  );
+  const PREVIEW = 5;
+  const visibleSelected = selectedExpanded ? selectedShipments : selectedShipments.slice(0, PREVIEW);
+
+  function ShipmentRow({ s, checked }: { s: Shipment; checked: boolean }) {
+    return (
+      <tr onClick={() => onToggle(s.id)} style={{ borderTop: "1px solid #F2F4F7", cursor: "pointer" }}
+        onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
+        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+        <td style={{ padding: "8px 10px" }}>
+          <div style={{ width: 16, height: 16, border: `2px solid ${checked ? "#175CD3" : "#D0D5DD"}`, borderRadius: 4, background: checked ? "#175CD3" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {checked && <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>}
+          </div>
+        </td>
+        <td style={{ padding: "8px 10px" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span style={{ background: "#ECFDF3", color: "#027A48", borderRadius: 4, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>SH</span>
+            {s.reference}
+          </span>
+        </td>
+        <td style={{ padding: "8px 10px", color: "#667085" }}>{fmtDate(s.eta)}</td>
+        <td style={{ padding: "8px 10px", color: "#344054" }}>{s.actor ?? "—"}</td>
+        <td style={{ padding: "8px 10px", color: "#98A2B3" }}>{s.own_transport ? "Own transport" : s.transports?.reference ?? "Unlinked"}</td>
+        <td style={{ padding: "8px 10px" }}><StatusPill status={s.status} /></td>
+      </tr>
+    );
+  }
+
   return (
     <div>
+      {/* ── Selected section ── */}
+      {selectedShipments.length > 0 && (
+        <div style={{ marginBottom: 10, border: "1px solid #B2CCFF", borderRadius: 8, overflow: "hidden" }}>
+          <div
+            onClick={() => setSelectedExpanded(e => !e)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#EFF8FF", cursor: "pointer", userSelect: "none" as const }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#175CD3" }}>Selected shipments</span>
+              <span style={{ background: "#175CD3", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 11, fontWeight: 700 }}>{selectedShipments.length}</span>
+            </div>
+            <span style={{ fontSize: 12, color: "#175CD3", fontWeight: 500 }}>
+              {selectedExpanded ? "▲ Collapse" : `▼ Show all${selectedShipments.length > PREVIEW ? ` (${selectedShipments.length})` : ""}`}
+            </span>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <tbody>{visibleSelected.map(s => <ShipmentRow key={s.id} s={s} checked />)}</tbody>
+          </table>
+          {!selectedExpanded && selectedShipments.length > PREVIEW && (
+            <div
+              onClick={() => setSelectedExpanded(true)}
+              style={{ padding: "7px 12px", background: "#EFF8FF", borderTop: "1px solid #B2CCFF", fontSize: 12, color: "#175CD3", fontWeight: 500, cursor: "pointer", textAlign: "center" as const }}>
+              + {selectedShipments.length - PREVIEW} more selected
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Search ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #D0D5DD", borderRadius: 8, marginBottom: 10 }}>
         <span style={{ color: "#98A2B3" }}>🔍</span>
         <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search shipments..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
+        {search && <button onClick={() => onSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>✕</button>}
       </div>
+
+      {/* ── Unselected list ── */}
       <div style={{ border: "1px solid #E4E7EC", borderRadius: 8, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead><tr style={{ background: "#F9FAFB" }}>
             <th style={{ width: 36, padding: "7px 10px" }} />
-            {["ID","ETA","Actor","Transport","Status"].map(h => <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#667085", fontSize: 10.5, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{h}</th>)}
+            {["ID","ETA","Actor","Transport","Status"].map(h => (
+              <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#667085", fontSize: 10.5, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{h}</th>
+            ))}
           </tr></thead>
           <tbody>
-            {filtered.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#98A2B3" }}>No shipments found</td></tr>}
-            {filtered.map(s => (
-              <tr key={s.id} onClick={() => onToggle(s.id)} style={{ borderTop: "1px solid #F2F4F7", cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <td style={{ padding: "8px 10px" }}>
-                  <div style={{ width: 16, height: 16, border: `2px solid ${selected.includes(s.id) ? "#175CD3" : "#D0D5DD"}`, borderRadius: 4, background: selected.includes(s.id) ? "#175CD3" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {selected.includes(s.id) && <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>}
-                  </div>
-                </td>
-                <td style={{ padding: "8px 10px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ background: "#ECFDF3", color: "#027A48", borderRadius: 4, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>SH</span>{s.reference}</span></td>
-                <td style={{ padding: "8px 10px", color: "#667085" }}>{fmtDate(s.eta)}</td>
-                <td style={{ padding: "8px 10px", color: "#344054" }}>{s.actor ?? "—"}</td>
-                <td style={{ padding: "8px 10px", color: "#98A2B3" }}>{s.own_transport ? "Own transport" : s.transports?.reference ?? "Unlinked"}</td>
-                <td style={{ padding: "8px 10px" }}><StatusPill status={s.status} /></td>
-              </tr>
-            ))}
+            {unselected.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#98A2B3" }}>
+                {search ? "No shipments match your search" : selectedShipments.length > 0 ? "All shipments are selected" : "No shipments found"}
+              </td></tr>
+            )}
+            {unselected.map(s => <ShipmentRow key={s.id} s={s} checked={false} />)}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
+
 
 // ── Transport picker (radio list) ─────────────────────────────────────────────
 function TransportPickerTable({ transports, selected, onSelect, search, onSearch }: {
