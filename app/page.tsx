@@ -143,15 +143,25 @@ export default function Home() {
     await loadInvoices();
   }
 
-  async function handleExport() {
-    if (!active) return;
-    const res = await fetch(`/api/invoices/${active.id}`, { method: "POST" });
-    if (!res.ok) return;
-    const { payload } = await res.json();
-    setExportPayload(payload);
-    setShowExport(true);
-    await loadInvoices();
-  }
+async function handleSubmitToDigitoll() {
+  if (!active) return;
+  await fetch(`/api/invoices/${active.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "ready_for_digitoll" }),
+  });
+  setShowExport(false);
+  await loadInvoices();
+}
+async function handleExport() {
+  if (!active) return;
+  const res = await fetch(`/api/invoices/${active.id}`, { method: "POST" });
+  if (!res.ok) return;
+  const { payload } = await res.json();
+  setExportPayload(payload);
+  setShowExport(true);
+  await loadInvoices();
+}
 
   function downloadJSON() {
     if (!exportPayload || !active) return;
@@ -358,7 +368,7 @@ export default function Home() {
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{comp.total - comp.filled} fields missing</span>
                 )}
                 <button className={`btn${isReady ? " btn-primary" : ""}`} disabled={!isReady} onClick={handleExport}>
-                  Export to Digitoll
+                  Review & Send to Digitoll
                 </button>
               </div>
             </div>
@@ -475,11 +485,11 @@ export default function Home() {
         <div className="modal-overlay" onClick={() => setShowExport(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Export to Digitoll</span>
+              <span className="modal-title">Review & send to Digitoll</span>
               <div className="modal-actions">
                 {copyOk && <span className="copy-ok">Copied!</span>}
                 <button className="btn" onClick={copyJSON}>Copy JSON</button>
-                <button className="btn btn-primary" onClick={downloadJSON}>Download .json</button>
+                <button className="btn btn-primary" onClick={handleSubmitToDigitoll}>Confirm & send to Digitoll</button>
                 <button className="btn" onClick={() => setShowExport(false)}>Close</button>
               </div>
             </div>
