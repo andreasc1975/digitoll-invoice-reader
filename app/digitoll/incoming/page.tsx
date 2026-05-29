@@ -12,6 +12,7 @@ interface Invoice {
   created_at: string;
   transport_id: string | null;
   shipment_id: string | null;
+  source: string | null;
   invoice_fields: { field_key: string; field_value: string | null; confidence: string | null; source: string }[];
 }
 
@@ -22,7 +23,7 @@ interface Transport {
 }
 
 type ViewMode = "table" | "split";
-type Destination = "digitoll" | "sad" | "cms" | "save" | null;
+type Destination = "digitoll" | "sad" | "cms" | null;
 type CreateType = "transport" | "shipment" | null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -34,6 +35,28 @@ function fmtSize(b: number) {
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" });
 }
+
+// ── Source config ─────────────────────────────────────────────────────────────
+const SOURCE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  ehf:      { label: "EHF/PEPPOL", icon: "⚡", color: "#027A48", bg: "#ECFDF3" },
+  edi:      { label: "EDI",        icon: "🔗", color: "#175CD3", bg: "#EFF8FF" },
+  sftp:     { label: "SFTP",       icon: "📡", color: "#6941C6", bg: "#F9F5FF" },
+  api:      { label: "API",        icon: "🔌", color: "#C11574", bg: "#FDF2FA" },
+  email:    { label: "Email",      icon: "📧", color: "#B54708", bg: "#FFFAEB" },
+  portal:   { label: "Portal",     icon: "🌐", color: "#344054", bg: "#F2F4F7" },
+  scan_ocr: { label: "Scan/OCR",   icon: "🖨️",  color: "#667085", bg: "#F2F4F7" },
+  upload:   { label: "Upload",     icon: "↑",   color: "#344054", bg: "#F2F4F7" },
+};
+
+function SourceBadge({ source }: { source: string | null }) {
+  const cfg = SOURCE_CONFIG[source ?? "upload"] ?? SOURCE_CONFIG.upload;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 5, fontSize: 11, fontWeight: 500, background: cfg.bg, color: cfg.color, whiteSpace: "nowrap" as const }}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
 function barColor(pct: number) {
   if (pct >= 100) return "#12B76A";
   if (pct >= 60) return "#F79009";
@@ -149,30 +172,16 @@ export default function IncomingDocuments() {
     setView("split");
   }
 
-async function saveForLater() {
-  setView("table");
-  setActiveInvoice(null);
-  setFileUrl(null);
-  setDestination(null);
-  setCreateType(null);
-  setShowCmsAnim(false);
-  setCmsStep(0);
-  load();
-}
-
-async function discardAndDelete() {
-  if (activeInvoice) {
-    await fetch(`/api/invoices/${activeInvoice.id}`, { method: "DELETE" });
+  function discardAndReturn() {
+    setView("table");
+    setActiveInvoice(null);
+    setFileUrl(null);
+    setDestination(null);
+    setCreateType(null);
+    setShowCmsAnim(false);
+    setCmsStep(0);
+    load();
   }
-  setView("table");
-  setActiveInvoice(null);
-  setFileUrl(null);
-  setDestination(null);
-  setCreateType(null);
-  setShowCmsAnim(false);
-  setCmsStep(0);
-  load();
-}
 
   // ── CMS animation ─────────────────────────────────────────────────────────
   function triggerCms() {
@@ -181,7 +190,7 @@ async function discardAndDelete() {
     setTimeout(() => setCmsStep(2), 1200);
     setTimeout(() => setCmsStep(3), 2400);
     setTimeout(() => {
-      saveForLater();
+      discardAndReturn();
     }, 3800);
   }
 
@@ -215,7 +224,7 @@ async function discardAndDelete() {
         body: JSON.stringify({ [`${createType}_id`]: record.id }),
       });
       setSaving(false);
-      saveForLater();
+      discardAndReturn();
       router.push("/digitoll");
     } else {
       setSaving(false);
@@ -311,12 +320,12 @@ async function discardAndDelete() {
       <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 10, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" as const }}>
           <colgroup>
-            <col style={{ width: "30%" }} /><col style={{ width: "6%" }} /><col style={{ width: "7%" }} />
-            <col style={{ width: "11%" }} /><col style={{ width: "12%" }} /><col style={{ width: "13%" }} />
-            <col style={{ width: "11%" }} /><col style={{ width: "8%" }} /><col style={{ width: 36 }} />
+            <col style={{ width: "28%" }} /><col style={{ width: "11%" }} /><col style={{ width: "7%" }} />
+            <col style={{ width: "11%" }} /><col style={{ width: "13%" }} /><col style={{ width: "11%" }} />
+            <col style={{ width: "10%" }} /><col style={{ width: "7%" }} /><col style={{ width: 36 }} />
           </colgroup>
           <thead style={{ background: "#F9FAFB", borderBottom: "1px solid #E4E7EC" }}>
-            <tr>{["Document","Type","Size","Uploaded","Extracted by","Status","Completion","Action",""].map((h,i) => (
+            <tr>{["Document","Source","Size","Uploaded","Status","Completion","Action",""].map((h,i) => (
               <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
             ))}</tr>
           </thead>
@@ -337,7 +346,7 @@ async function discardAndDelete() {
                   <td style={{ padding: "10px 12px", color: "#667085", fontSize: 12.5 }}>{inv.file_name.endsWith(".pdf") ? "PDF" : "IMG"}</td>
                   <td style={{ padding: "10px 12px", color: "#98A2B3", fontSize: 12 }}>{fmtSize(inv.file_size)}</td>
                   <td style={{ padding: "10px 12px", color: "#667085", fontSize: 11.5 }}>{fmtDate(inv.created_at)}</td>
-                  <td style={{ padding: "10px 12px", color: "#667085", fontSize: 12 }}>AI (Claude)</td>
+                  <td style={{ padding: "10px 12px" }}><SourceBadge source={inv.source} /></td>
                   <td style={{ padding: "10px 12px" }}>
                     <span title={st.tip} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11.5, fontWeight: 500, background: st.bg, color: st.color }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.color, flexShrink: 0 }} />
@@ -379,7 +388,7 @@ async function discardAndDelete() {
       <div style={{ width: "48%", borderRight: "1px solid #E4E7EC", display: "flex", flexDirection: "column", background: "#F9FAFB" }}>
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #E4E7EC", background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#344054" }}>Source Document</span>
-          <button onClick={discardAndDelete} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085" }}>
+          <button onClick={discardAndReturn} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085" }}>
             ✕ Discard
           </button>
         </div>
@@ -462,9 +471,8 @@ async function discardAndDelete() {
                       { key: "digitoll" as Destination, icon: "🚛", label: "Digitoll", sub: "Create Transport or Shipment for Norwegian Customs" },
                       { key: "sad" as Destination, icon: "📋", label: "Full Declaration", sub: "Create a full SAD customs declaration" },
                       { key: "cms" as Destination, icon: "⬡", label: "CMS", sub: "Send extracted data to CMS system" },
-                      { key: "save" as Destination, icon: "💾", label: "Save for later", sub: "Keep in inbox — no further action" },
                     ].map(opt => (
-                      <div key={opt.key} onClick={() => { if (opt.key === "save") { saveForLater(); return; } setDestination(opt.key); }}
+                      <div key={opt.key} onClick={() => setDestination(opt.key)}
                         style={{ border: "1px solid #E4E7EC", borderRadius: 10, padding: 14, cursor: "pointer", textAlign: "center" as const, transition: "all .15s" }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; (e.currentTarget as HTMLElement).style.background = "#F5F8FF"; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E4E7EC"; (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
