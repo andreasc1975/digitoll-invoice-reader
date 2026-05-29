@@ -22,7 +22,7 @@ interface Transport {
 }
 
 type ViewMode = "table" | "split";
-type Destination = "digitoll" | "sad" | "cms" | null;
+type Destination = "digitoll" | "sad" | "cms" | "save" | null;
 type CreateType = "transport" | "shipment" | null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -149,16 +149,30 @@ export default function IncomingDocuments() {
     setView("split");
   }
 
-  function discardAndReturn() {
-    setView("table");
-    setActiveInvoice(null);
-    setFileUrl(null);
-    setDestination(null);
-    setCreateType(null);
-    setShowCmsAnim(false);
-    setCmsStep(0);
-    load();
+async function saveForLater() {
+  setView("table");
+  setActiveInvoice(null);
+  setFileUrl(null);
+  setDestination(null);
+  setCreateType(null);
+  setShowCmsAnim(false);
+  setCmsStep(0);
+  load();
+}
+
+async function discardAndDelete() {
+  if (activeInvoice) {
+    await fetch(`/api/invoices/${activeInvoice.id}`, { method: "DELETE" });
   }
+  setView("table");
+  setActiveInvoice(null);
+  setFileUrl(null);
+  setDestination(null);
+  setCreateType(null);
+  setShowCmsAnim(false);
+  setCmsStep(0);
+  load();
+}
 
   // ── CMS animation ─────────────────────────────────────────────────────────
   function triggerCms() {
@@ -167,7 +181,7 @@ export default function IncomingDocuments() {
     setTimeout(() => setCmsStep(2), 1200);
     setTimeout(() => setCmsStep(3), 2400);
     setTimeout(() => {
-      discardAndReturn();
+      saveForLater();
     }, 3800);
   }
 
@@ -201,7 +215,7 @@ export default function IncomingDocuments() {
         body: JSON.stringify({ [`${createType}_id`]: record.id }),
       });
       setSaving(false);
-      discardAndReturn();
+      saveForLater();
       router.push("/digitoll");
     } else {
       setSaving(false);
@@ -365,7 +379,7 @@ export default function IncomingDocuments() {
       <div style={{ width: "48%", borderRight: "1px solid #E4E7EC", display: "flex", flexDirection: "column", background: "#F9FAFB" }}>
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #E4E7EC", background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#344054" }}>Source Document</span>
-          <button onClick={discardAndReturn} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085" }}>
+          <button onClick={discardAndDelete} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085" }}>
             ✕ Discard
           </button>
         </div>
@@ -448,8 +462,9 @@ export default function IncomingDocuments() {
                       { key: "digitoll" as Destination, icon: "🚛", label: "Digitoll", sub: "Create Transport or Shipment for Norwegian Customs" },
                       { key: "sad" as Destination, icon: "📋", label: "Full Declaration", sub: "Create a full SAD customs declaration" },
                       { key: "cms" as Destination, icon: "⬡", label: "CMS", sub: "Send extracted data to CMS system" },
+                      { key: "save" as Destination, icon: "💾", label: "Save for later", sub: "Keep in inbox — no further action" },
                     ].map(opt => (
-                      <div key={opt.key} onClick={() => setDestination(opt.key)}
+                      <div key={opt.key} onClick={() => { if (opt.key === "save") { saveForLater(); return; } setDestination(opt.key); }}
                         style={{ border: "1px solid #E4E7EC", borderRadius: 10, padding: 14, cursor: "pointer", textAlign: "center" as const, transition: "all .15s" }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; (e.currentTarget as HTMLElement).style.background = "#F5F8FF"; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E4E7EC"; (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
