@@ -207,7 +207,7 @@ export default function SettingsPage() {
   const fBtn = (active: boolean): React.CSSProperties => ({ padding: "4px 12px", borderRadius: 16, border: `1px solid ${active ? "#0B1F3A" : "#D0D5DD"}`, background: active ? "#0B1F3A" : "#fff", color: active ? "#fff" : "#344054", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" });
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 24, fontFamily: "'Inter', sans-serif", maxWidth: 860 }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: 24, fontFamily: "'Inter', sans-serif" }}>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#101828" }}>Settings</h1>
