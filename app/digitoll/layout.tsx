@@ -6,9 +6,20 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
   const path = usePathname();
 
   const navItems = [
-    { href: "/digitoll",          label: "Start",              dot: true },
-    { href: "/digitoll/incoming", label: "Incoming Documents", dot: false },
+    { href: "/digitoll",          label: "Start" },
+    { href: "/digitoll/incoming", label: "Incoming Documents" },
   ];
+
+  const systemItems = [
+    { href: "/digitoll/settings", label: "Settings" },
+  ];
+
+  function pageTitle() {
+    if (path === "/digitoll")           return "Start";
+    if (path === "/digitoll/incoming")  return "Incoming Documents";
+    if (path === "/digitoll/settings")  return "Settings";
+    return "";
+  }
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "#F4F5F7", fontFamily: "'Inter', sans-serif" }}>
@@ -44,10 +55,22 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
         })}
 
         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", padding: "14px 16px 4px", letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>SYSTEM</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 16px", color: "rgba(255,255,255,0.55)", fontSize: 12.5, cursor: "pointer" }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.25)" }} />
-          Settings
-        </div>
+
+        {systemItems.map(item => {
+          const active = path.startsWith(item.href);
+          return (
+            <Link key={item.href} href={item.href} style={{
+              display: "flex", alignItems: "center", gap: 9, padding: "7px 16px",
+              color: active ? "#fff" : "rgba(255,255,255,0.55)",
+              background: active ? "rgba(255,255,255,0.08)" : "transparent",
+              borderLeft: `2px solid ${active ? "#4A9EDB" : "transparent"}`,
+              fontSize: 12.5, textDecoration: "none", transition: "all .15s",
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#4A9EDB" : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+              {item.label}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Main area */}
@@ -63,7 +86,7 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
           </div>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.12)", margin: "0 4px" }} />
           <div style={{ color: "#fff", fontSize: 13, fontWeight: 500, flex: 1, textAlign: "center" }}>
-            Digitoll / {path === "/digitoll" ? "Start" : path === "/digitoll/incoming" ? "Incoming Documents" : ""}
+            Digitoll / {pageTitle()}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
             {["＋", "⚙", "🕐", "🔔"].map((icon, i) => (
