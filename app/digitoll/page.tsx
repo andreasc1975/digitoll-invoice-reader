@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Transport {
@@ -47,7 +47,6 @@ interface ShipmentLine {
 type RowType = { kind: "transport"; data: Transport } | { kind: "shipment"; data: Shipment };
 type TransportLink = "decide_later" | "own" | "existing";
 
-// Which modal/panel is open, and in which "step"
 type ActiveModal =
   | null
   | { type: "new-transport" }
@@ -110,7 +109,7 @@ function StatusPill({ status, tooltip }: { status: string; tooltip?: string }) {
   };
   const c = colorMap[cfg.color];
   return (
-    <span title={tooltip ?? cfg.tip} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11.5, fontWeight: 500, background: c.pill, color: c.text, whiteSpace: "nowrap", cursor: "default" }}>
+    <span title={tooltip ?? cfg.tip} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 2, fontSize: 11.5, fontWeight: 500, background: c.pill, color: c.text, whiteSpace: "nowrap", cursor: "default" }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot, flexShrink: 0 }} />
       {cfg.label}
     </span>
@@ -121,16 +120,15 @@ function DeclBadge({ status }: { status: string }) {
   const cfg = DECL_CONFIG[status] ?? DECL_CONFIG.none;
   const bg: Record<string, string> = { "decl-none": "#F2F4F7", "decl-draft": "#FFFAEB", "decl-linked": "#ECFDF3", "decl-sub": "#EFF8FF" };
   const tx: Record<string, string> = { "decl-none": "#667085", "decl-draft": "#B54708", "decl-linked": "#027A48", "decl-sub": "#175CD3" };
-  return <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 5, fontSize: 11, fontWeight: 500, background: bg[cfg.cls], color: tx[cfg.cls] }}>{cfg.label}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 2, fontSize: 11, fontWeight: 500, background: bg[cfg.cls], color: tx[cfg.cls] }}>{cfg.label}</span>;
 }
 
 // ── Style tokens ──────────────────────────────────────────────────────────────
-const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 8, background: "#0B1F3A", color: "#fff", fontSize: 12.5, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "inherit" };
-const btnSec: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, background: "#fff", color: "#344054", fontSize: 12.5, fontWeight: 500, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit" };
-const btnGreen: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 0", borderRadius: 8, background: "#17B26A", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", width: "100%" };
-const btnDanger: React.CSSProperties = { ...btnPri, background: "#D92D20" };
-const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 8, fontSize: 13, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
-const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 13px", borderRadius: 20, border: `1px solid ${active ? "#0B1F3A" : "#D0D5DD"}`, background: active ? "#0B1F3A" : "#fff", color: active ? "#fff" : "#344054", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" });
+const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 2, background: "#0B1F3A", color: "#fff", fontSize: 12.5, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "inherit" };
+const btnSec: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 2, background: "#fff", color: "#344054", fontSize: 12.5, fontWeight: 500, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit" };
+const btnGreen: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 0", borderRadius: 2, background: "#17B26A", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", width: "100%" };
+const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 13, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
+const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 2, border: "none", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
 function FL({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 5, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{children}{required && <span style={{ color: "#D92D20" }}> *</span>}</label>;
@@ -141,7 +139,7 @@ function Overlay({ open, onClose, children, wide }: { open: boolean; onClose: ()
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: wide ? 700 : 580, maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: wide ? 700 : 580, maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column" }}>
         {children}
       </div>
     </div>
@@ -155,7 +153,7 @@ function ModalHeader({ title, subtitle, onClose }: { title: string; subtitle?: s
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{title}</h3>
         {subtitle && <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667085" }}>{subtitle}</p>}
       </div>
-      <button onClick={onClose} style={{ width: 30, height: 30, border: "1px solid #E4E7EC", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#667085", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+      <button onClick={onClose} style={{ width: 30, height: 30, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", color: "#667085", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
     </div>
   );
 }
@@ -173,12 +171,11 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
   );
 }
 
-// ── Shipment picker (checkbox list) ──────────────────────────────────────────
+// ── Shipment picker ───────────────────────────────────────────────────────────
 function ShipmentPickerTable({ shipments, selected, onToggle, search, onSearch }: {
   shipments: Shipment[]; selected: string[]; onToggle: (id: string) => void; search: string; onSearch: (v: string) => void;
 }) {
   const [selectedExpanded, setSelectedExpanded] = useState(false);
-
   const selectedShipments = shipments.filter(s => selected.includes(s.id));
   const unselected = shipments.filter(s =>
     !selected.includes(s.id) &&
@@ -193,13 +190,13 @@ function ShipmentPickerTable({ shipments, selected, onToggle, search, onSearch }
         onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
         onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
         <td style={{ padding: "8px 10px" }}>
-          <div style={{ width: 16, height: 16, border: `2px solid ${checked ? "#175CD3" : "#D0D5DD"}`, borderRadius: 4, background: checked ? "#175CD3" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 16, height: 16, border: `2px solid ${checked ? "#175CD3" : "#D0D5DD"}`, borderRadius: 2, background: checked ? "#175CD3" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {checked && <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>}
           </div>
         </td>
         <td style={{ padding: "8px 10px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span style={{ background: "#ECFDF3", color: "#027A48", borderRadius: 4, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>SH</span>
+            <span style={{ background: "#ECFDF3", color: "#027A48", borderRadius: 2, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>SH</span>
             {s.reference}
           </span>
         </td>
@@ -213,42 +210,31 @@ function ShipmentPickerTable({ shipments, selected, onToggle, search, onSearch }
 
   return (
     <div>
-      {/* ── Selected section ── */}
       {selectedShipments.length > 0 && (
-        <div style={{ marginBottom: 10, border: "1px solid #B2CCFF", borderRadius: 8, overflow: "hidden" }}>
-          <div
-            onClick={() => setSelectedExpanded(e => !e)}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#EFF8FF", cursor: "pointer", userSelect: "none" as const }}>
+        <div style={{ marginBottom: 10, border: "1px solid #B2CCFF", borderRadius: 2, overflow: "hidden" }}>
+          <div onClick={() => setSelectedExpanded(e => !e)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#EFF8FF", cursor: "pointer", userSelect: "none" as const }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: "#175CD3" }}>Selected shipments</span>
-              <span style={{ background: "#175CD3", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 11, fontWeight: 700 }}>{selectedShipments.length}</span>
+              <span style={{ background: "#175CD3", color: "#fff", borderRadius: 2, padding: "0 7px", fontSize: 11, fontWeight: 700 }}>{selectedShipments.length}</span>
             </div>
-            <span style={{ fontSize: 12, color: "#175CD3", fontWeight: 500 }}>
-              {selectedExpanded ? "▲ Collapse" : `▼ Show all${selectedShipments.length > PREVIEW ? ` (${selectedShipments.length})` : ""}`}
-            </span>
+            <span style={{ fontSize: 12, color: "#175CD3", fontWeight: 500 }}>{selectedExpanded ? "▲ Collapse" : `▼ Show all${selectedShipments.length > PREVIEW ? ` (${selectedShipments.length})` : ""}`}</span>
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <tbody>{visibleSelected.map(s => <ShipmentRow key={s.id} s={s} checked />)}</tbody>
           </table>
           {!selectedExpanded && selectedShipments.length > PREVIEW && (
-            <div
-              onClick={() => setSelectedExpanded(true)}
-              style={{ padding: "7px 12px", background: "#EFF8FF", borderTop: "1px solid #B2CCFF", fontSize: 12, color: "#175CD3", fontWeight: 500, cursor: "pointer", textAlign: "center" as const }}>
+            <div onClick={() => setSelectedExpanded(true)} style={{ padding: "7px 12px", background: "#EFF8FF", borderTop: "1px solid #B2CCFF", fontSize: 12, color: "#175CD3", fontWeight: 500, cursor: "pointer", textAlign: "center" as const }}>
               + {selectedShipments.length - PREVIEW} more selected
             </div>
           )}
         </div>
       )}
-
-      {/* ── Search ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #D0D5DD", borderRadius: 8, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #D0D5DD", borderRadius: 2, marginBottom: 10 }}>
         <span style={{ color: "#98A2B3" }}>🔍</span>
         <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search shipments..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
         {search && <button onClick={() => onSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>✕</button>}
       </div>
-
-      {/* ── Unselected list ── */}
-      <div style={{ border: "1px solid #E4E7EC", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead><tr style={{ background: "#F9FAFB" }}>
             <th style={{ width: 36, padding: "7px 10px" }} />
@@ -270,19 +256,18 @@ function ShipmentPickerTable({ shipments, selected, onToggle, search, onSearch }
   );
 }
 
-
-// ── Transport picker (radio list) ─────────────────────────────────────────────
+// ── Transport picker ──────────────────────────────────────────────────────────
 function TransportPickerTable({ transports, selected, onSelect, search, onSearch }: {
   transports: Transport[]; selected: string; onSelect: (id: string) => void; search: string; onSearch: (v: string) => void;
 }) {
   const filtered = transports.filter(t => !search || t.reference.toLowerCase().includes(search.toLowerCase()) || fmtDate(t.eta).includes(search));
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #D0D5DD", borderRadius: 8, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #D0D5DD", borderRadius: 2, marginBottom: 10 }}>
         <span style={{ color: "#98A2B3" }}>🔍</span>
         <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search by date, reference..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
       </div>
-      <div style={{ border: "1px solid #E4E7EC", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead><tr style={{ background: "#F9FAFB" }}>
             <th style={{ width: 36, padding: "7px 10px" }} />
@@ -298,7 +283,7 @@ function TransportPickerTable({ transports, selected, onSelect, search, onSearch
                     {selected === t.id && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#175CD3", display: "block" }} />}
                   </div>
                 </td>
-                <td style={{ padding: "8px 10px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ background: "#EFF8FF", color: "#175CD3", borderRadius: 4, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>TR</span>{t.reference}</span></td>
+                <td style={{ padding: "8px 10px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ background: "#EFF8FF", color: "#175CD3", borderRadius: 2, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>TR</span>{t.reference}</span></td>
                 <td style={{ padding: "8px 10px", color: "#667085" }}>{fmtDate(t.eta)}</td>
                 <td style={{ padding: "8px 10px", color: "#344054" }}>{t.actor ?? "—"}</td>
                 <td style={{ padding: "8px 10px", color: "#98A2B3" }}>{t.transport_mode ?? "—"}</td>
@@ -312,7 +297,7 @@ function TransportPickerTable({ transports, selected, onSelect, search, onSearch
   );
 }
 
-// ── Transport form (shared between New and Edit) ───────────────────────────────
+// ── Transport form ────────────────────────────────────────────────────────────
 function TransportForm({ form, onChange }: {
   form: { transport_mode: string; identifier: string; border_crossing: string; eta: string };
   onChange: (f: typeof form) => void;
@@ -344,6 +329,66 @@ function TransportForm({ form, onChange }: {
   );
 }
 
+// ── Create context menu ───────────────────────────────────────────────────────
+function CreateMenu({ onNewTransport, onNewShipment, onClose }: {
+  onNewTransport: () => void;
+  onNewShipment: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  const menuItem = (onClick: () => void, badge: React.ReactNode, label: string, sub: string) => (
+    <div
+      onClick={() => { onClick(); onClose(); }}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #F2F4F7" }}
+      onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
+      onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
+    >
+      {badge}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#101828" }}>{label}</div>
+        <div style={{ fontSize: 11.5, color: "#667085" }}>{sub}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={ref} style={{
+      position: "fixed",
+      top: 52,
+      right: 120,
+      width: 260,
+      background: "#fff",
+      borderRadius: 2,
+      boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+      border: "1px solid #E4E7EC",
+      zIndex: 500,
+      overflow: "hidden",
+    }}>
+      {menuItem(
+        onNewTransport,
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 22, borderRadius: 2, fontSize: 11, fontWeight: 700, background: "#EFF8FF", color: "#175CD3", flexShrink: 0 }}>TR</span>,
+        "New Transport",
+        "New transport document"
+      )}
+      {menuItem(
+        onNewShipment,
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 22, borderRadius: 2, fontSize: 11, fontWeight: 700, background: "#ECFDF3", color: "#027A48", flexShrink: 0 }}>SH</span>,
+        "New Shipment",
+        "New shipment document"
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DigitollStart() {
   const [transports, setTransports] = useState<Transport[]>([]);
@@ -353,20 +398,47 @@ export default function DigitollStart() {
   const [active, setActive]         = useState<ActiveModal>(null);
   const [saving, setSaving]         = useState(false);
   const [sendDone, setSendDone]     = useState(false);
+  const [sortCol, setSortCol]       = useState<string | null>(null);
+  const [sortDir, setSortDir]       = useState<"asc" | "desc">("asc");
+
+  function handleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  function getSortValue(row: RowType, col: string): string {
+    const d = row.data;
+    if (col === "kind")    return row.kind;
+    if (col === "state")   return d.state_id ?? "";
+    if (col === "id")      return d.reference ?? "";
+    if (col === "sh")      return row.kind === "transport" ? String((d as Transport).shipments?.length ?? 0) : "";
+    if (col === "date")    return (d as Transport).ata ?? d.eta ?? d.created_at ?? "";
+    if (col === "actor")   return d.actor ?? "";
+    if (col === "resp")    return d.responsible ?? "";
+    if (col === "carrier") return d.carrier ?? "";
+    if (col === "border")  return d.border_crossing ?? "";
+    if (col === "transport") return row.kind === "shipment" ? ((d as Shipment).own_transport ? "Own transport" : (d as Shipment).transports?.reference ?? "Unlinked") : ((d as Transport).transport_mode ?? "");
+    if (col === "status")  return d.status ?? "";
+    if (col === "decl")    return d.declaration_status ?? "";
+    return "";
+  }
+
+  // ── Context menu state ────────────────────────────────────────────────────
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
 
   // ── Transport form state ──────────────────────────────────────────────────
   const emptyTrForm = { transport_mode: "Road", identifier: "", border_crossing: "", eta: "" };
-  const [trForm, setTrForm]                   = useState(emptyTrForm);
+  const [trForm, setTrForm]                     = useState(emptyTrForm);
   const [trShipmentSearch, setTrShipmentSearch] = useState("");
   const [trLinkedShipments, setTrLinkedShipments] = useState<string[]>([]);
 
   // ── Shipment form state ───────────────────────────────────────────────────
   const defaultLine = (): ShipmentLine => ({ id: crypto.randomUUID(), importer: "", receiver: "", product_description: "", gross_weight: "" });
-  const [shLines, setShLines]                   = useState<ShipmentLine[]>([defaultLine()]);
-  const [shTransportLink, setShTransportLink]   = useState<TransportLink>("decide_later");
+  const [shLines, setShLines]                     = useState<ShipmentLine[]>([defaultLine()]);
+  const [shTransportLink, setShTransportLink]     = useState<TransportLink>("decide_later");
   const [shTransportSearch, setShTransportSearch] = useState("");
   const [shSelectedTransport, setShSelectedTransport] = useState("");
-  const [shOwnTransport, setShOwnTransport]     = useState(emptyTrForm);
+  const [shOwnTransport, setShOwnTransport]       = useState(emptyTrForm);
 
   const load = useCallback(async () => {
     const [tr, sh] = await Promise.all([
@@ -378,6 +450,15 @@ export default function DigitollStart() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Listen for topbar + button event ─────────────────────────────────────
+  useEffect(() => {
+    function handleTopbarCreate() {
+      setShowCreateMenu(prev => !prev);
+    }
+    window.addEventListener("digitoll:open-create-menu", handleTopbarCreate);
+    return () => window.removeEventListener("digitoll:open-create-menu", handleTopbarCreate);
+  }, []);
 
   function close() { setActive(null); setSendDone(false); }
 
@@ -472,10 +553,41 @@ export default function DigitollStart() {
     if (filter === "completed")  return ["accepted","arrived"].includes(d.status);
     if (filter === "transports") return row.kind === "transport";
     if (filter === "shipments")  return row.kind === "shipment";
+    if (filter === "today") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const end   = new Date(start.getTime() + 86400000);
+      const eta   = new Date(d.eta ?? d.created_at);
+      return eta >= start && eta < end;
+    }
+    if (filter === "this_week") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dow   = now.getDay();
+      const monday = new Date(start.getTime() - ((dow === 0 ? 6 : dow - 1) * 86400000));
+      const sunday = new Date(monday.getTime() + 7 * 86400000);
+      const eta   = new Date(d.eta ?? d.created_at);
+      return eta >= monday && eta < sunday;
+    }
+    if (filter === "next_7") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const end   = new Date(start.getTime() + 7 * 86400000);
+      const eta   = new Date(d.eta ?? d.created_at);
+      return eta >= start && eta < end;
+    }
     return true;
   });
-  const trRows      = filteredRows.filter(r => r.kind === "transport");
-  const shRows      = filteredRows.filter(r => r.kind === "shipment");
+  const sortedRows = sortCol
+    ? [...filteredRows].sort((a, b) => {
+        const av = getSortValue(a, sortCol).toLowerCase();
+        const bv = getSortValue(b, sortCol).toLowerCase();
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      })
+    : filteredRows;
+
+  const trRows      = sortedRows.filter(r => r.kind === "transport");
+  const shRows      = sortedRows.filter(r => r.kind === "shipment");
   const activeCount = allRows.filter(r => ["incomplete","missing_shipments","awaiting_shipments","complete_unlinked"].includes(r.data.status)).length;
 
   function nextAction(row: RowType): string {
@@ -504,7 +616,7 @@ export default function DigitollStart() {
           return (
             <tr key={d.id} onClick={() => openRow(row)} style={{ borderBottom: "1px solid #F2F4F7", cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-              <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 4, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
+              <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 2, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
               <td style={{ padding: "9px 8px", fontWeight: 600, color: "#175CD3", fontSize: 12.5 }}>{d.state_id ?? "—"}</td>
               <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5 }}>{d.reference}</td>
               <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{isTransport ? (d as Transport).shipments?.length ?? 0 : "—"}</td>
@@ -518,10 +630,10 @@ export default function DigitollStart() {
               <td style={{ padding: "9px 8px" }}>
                 {isActionable
                   ? <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ ...btnPri, padding: "4px 10px", fontSize: 11.5, whiteSpace: "nowrap" as const }}>{next}</button>
-                  : <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 6, background: "transparent", color: "#175CD3", fontSize: 11.5, fontWeight: 500, border: "1px solid #B2CCFF", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>View</button>}
+                  : <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 2, background: "transparent", color: "#175CD3", fontSize: 11.5, fontWeight: 500, border: "1px solid #B2CCFF", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>View</button>}
               </td>
               <td style={{ padding: "9px 8px" }}><DeclBadge status={d.declaration_status} /></td>
-              <td style={{ padding: "9px 4px" }}><button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer", borderRadius: 5, color: "#98A2B3", fontSize: 18 }}>⋯</button></td>
+              <td style={{ padding: "9px 4px" }}><button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#98A2B3", fontSize: 18 }}>⋯</button></td>
             </tr>
           );
         })}
@@ -533,7 +645,7 @@ export default function DigitollStart() {
   function ShipmentFormBody() {
     return (
       <>
-        <div style={{ border: "1px solid #E4E7EC", borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead><tr style={{ background: "#F9FAFB" }}>
               {["#","IMPORTER","RECEIVER","PRODUCT DESCRIPTION","GROSS WEIGHT",""].map((h,i) => (
@@ -565,7 +677,7 @@ export default function DigitollStart() {
                   <td style={{ padding: "6px 8px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       {i === shLines.length - 1 && <button onClick={() => setShLines(ls => [...ls, defaultLine()])} style={{ width: 22, height: 22, borderRadius: "50%", background: "#175CD3", color: "#fff", border: "none", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
-                      {shLines.length > 1 && <button onClick={() => setShLines(ls => ls.filter(l => l.id !== line.id))} style={{ width: 22, height: 22, borderRadius: 4, background: "#FEF3F2", color: "#D92D20", border: "none", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>}
+                      {shLines.length > 1 && <button onClick={() => setShLines(ls => ls.filter(l => l.id !== line.id))} style={{ width: 22, height: 22, borderRadius: 2, background: "#FEF3F2", color: "#D92D20", border: "none", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>}
                     </div>
                   </td>
                 </tr>
@@ -588,7 +700,7 @@ export default function DigitollStart() {
           </div>
 
           {shTransportLink === "own" && (
-            <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 10, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Own Transport</div>
               <TransportForm form={shOwnTransport} onChange={setShOwnTransport} />
               <button onClick={() => saveShipment(active && "data" in active ? (active.data as Shipment).id : null)} disabled={saving} style={btnGreen}>
@@ -598,7 +710,7 @@ export default function DigitollStart() {
           )}
 
           {shTransportLink === "existing" && (
-            <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 10, padding: "16px 18px" }}>
+            <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 12 }}>Connect to Existing Transport</div>
               <TransportPickerTable transports={transports} selected={shSelectedTransport} onSelect={setShSelectedTransport} search={shTransportSearch} onSearch={setShTransportSearch} />
             </div>
@@ -608,7 +720,6 @@ export default function DigitollStart() {
     );
   }
 
-  // ── Which modal is open ───────────────────────────────────────────────────
   const isOpen = (t: string) => active?.type === t;
   const activeData = active && "data" in active ? active.data : null;
   const activeTr   = active?.type === "edit-transport" || active?.type === "view-transport" || active?.type === "link-shipments" || active?.type === "resolve-issues" || active?.type === "send-transport" || (active?.type === "review-errors" && "transport_mode" in (activeData ?? {})) ? activeData as Transport : null;
@@ -616,29 +727,88 @@ export default function DigitollStart() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, fontFamily: "'Inter', sans-serif" }}>
-      {/* Filter bar */}
-      <div style={{ padding: "14px 20px 0", background: "#F4F5F7" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          {([ ["all","All",allRows.length], ["active","Active",activeCount], ["completed","Completed",allRows.filter(r => ["accepted","arrived"].includes(r.data.status)).length], ["transports","Transports",transports.length], ["shipments","Shipments",shipments.length] ] as [string,string,number][]).map(([key,label,count]) => (
-            <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
-              {label}
-              <span style={{ background: filter === key ? "rgba(255,255,255,0.2)" : key === "active" && count > 0 ? "#FEE4E2" : "#F2F4F7", color: filter === key ? "#fff" : key === "active" && count > 0 ? "#B42318" : "#667085", borderRadius: 10, padding: "0 6px", fontSize: 10, fontWeight: 600 }}>{count}</span>
-            </button>
-          ))}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "1px solid #D0D5DD", borderRadius: 8, background: "#fff", width: 200 }}>
-              <span style={{ fontSize: 16, color: "#98A2B3" }}>🔍</span>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: "none", outline: "none", fontSize: 12, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
-            </div>
-            <button onClick={openNewTransport} style={btnPri}>＋ New transport</button>
-            <button onClick={openNewShipment} style={{ ...btnSec, border: "1px solid #B2CCFF", color: "#175CD3" }}>＋ New shipment</button>
+
+      {/* ── Context menu (triggas från topbar + knappen) ───────────────────── */}
+      {showCreateMenu && (
+        <CreateMenu
+          onNewTransport={openNewTransport}
+          onNewShipment={openNewShipment}
+          onClose={() => setShowCreateMenu(false)}
+        />
+      )}
+
+      {/* ── Filter bar ────────────────────────────────────────────────────── */}
+      <div style={{ padding: "14px 20px 0", background: "#F0F2F5" }}>
+        {/* Filter row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+          {(() => {
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const todayEnd   = new Date(todayStart.getTime() + 86400000);
+            const weekEnd    = new Date(todayStart.getTime() + 7 * 86400000);
+
+            const todayCount   = allRows.filter(r => { const d = new Date(r.data.eta ?? r.data.created_at); return d >= todayStart && d < todayEnd; }).length;
+            const thisWeekCount = allRows.filter(r => { const d = new Date(r.data.eta ?? r.data.created_at); return d >= todayStart && d < new Date(todayStart.getTime() + 7 * 86400000 / 7 * 7); }).length;
+            const next7Count   = allRows.filter(r => { const d = new Date(r.data.eta ?? r.data.created_at); return d >= todayStart && d < weekEnd; }).length;
+
+            const filters: [string, string, number][] = [
+              ["all",       "All",          allRows.length],
+              ["active",    "Active",       activeCount],
+              ["completed", "Completed",    allRows.filter(r => ["accepted","arrived"].includes(r.data.status)).length],
+              ["today",     "Today",        todayCount],
+              ["this_week", "This Week",    thisWeekCount],
+              ["next_7",    "Next 7 Days",  next7Count],
+            ];
+
+            return filters.map(([key, label, count]) => (
+              <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
+                {label}
+                {filter !== key && (
+                  <span style={{
+                    background: "#003160",
+                    color: "#fff",
+                    borderRadius: 2, padding: "1px 7px", fontSize: 10, fontWeight: 700,
+                    minWidth: 20, textAlign: "center" as const, lineHeight: "16px",
+                  }}>{count}</span>
+                )}
+              </button>
+            ));
+          })()}
+
+          {/* Right icons */}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            {[
+              { icon: "≡", title: "Group" },
+              { icon: "↺", title: "Refresh", onClick: load },
+              { icon: "⊟", title: "Filter" },
+            ].map(({ icon, title, onClick }) => (
+              <button key={title} title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#446BF9", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Search row — full width, under filter */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #D0D5DD", borderRadius: 2, background: "#fff" }}>
+            <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "#98A2B3", lineHeight: 1, userSelect: "none" as const }}>search</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search..."
+              style={{ border: "none", outline: "none", fontSize: 13, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }}
+            />
+            {search && (
+              <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Table */}
+      {/* ── Table ─────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 20px" }}>
-        <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: 12.5 }}>
             <colgroup>
               <col style={{ width: 38 }} /><col style={{ width: 60 }} /><col style={{ width: 75 }} />
@@ -649,8 +819,15 @@ export default function DigitollStart() {
             </colgroup>
             <thead>
               <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E4E7EC" }}>
-                {["","State","ID","SH","Date","Actor","Responsible","Carrier","Border","Transport","Status","Next step","Declaration",""].map((h,i) => (
-                  <th key={i} style={{ padding: "9px 8px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap", overflow: "hidden" }}>{h}</th>
+                {([
+                  ["", null], ["State", "state"], ["ID", "id"], ["SH", "sh"],
+                  ["Date", "date"], ["Actor", "actor"], ["Responsible", "resp"],
+                  ["Carrier", "carrier"], ["Border", "border"], ["Transport", "transport"],
+                  ["Status", "status"], ["Next step", null], ["Declaration", "decl"], ["", null]
+                ] as [string, string | null][]).map(([h, col], i) => (
+                  <th key={i} onClick={col ? () => handleSort(col) : undefined} style={{ padding: "9px 8px", textAlign: "left", fontSize: 11, fontWeight: 600, color: col ? "#003160" : "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap", overflow: "hidden", cursor: col ? "pointer" : "default", userSelect: "none" }}>
+                    {h}{col && sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -663,12 +840,12 @@ export default function DigitollStart() {
         </div>
       </div>
 
-      {/* ── NEW TRANSPORT ───────────────────────────────────────────────────── */}
+      {/* ── NEW TRANSPORT ─────────────────────────────────────────────────── */}
       <Overlay open={isOpen("new-transport")} onClose={close} wide>
         <ModalHeader title="New Transport (Master)" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <TransportForm form={trForm} onChange={setTrForm} />
-          <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 10, padding: "16px 18px" }}>
+          <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 3 }}>SHIPMENTS</div>
             <div style={{ fontSize: 12, color: "#667085", marginBottom: 10 }}>Link the shipments to this transport now or later</div>
             <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
@@ -680,13 +857,13 @@ export default function DigitollStart() {
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveTransport(null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
 
-      {/* ── EDIT TRANSPORT (Complete) ───────────────────────────────────────── */}
+      {/* ── EDIT TRANSPORT ────────────────────────────────────────────────── */}
       <Overlay open={isOpen("edit-transport")} onClose={close} wide>
         <ModalHeader title={`Complete Transport — ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} subtitle="Fill in the missing fields to complete this transport" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ marginBottom: 4 }}><StatusPill status={activeTr?.status ?? ""} /></div>
           <TransportForm form={trForm} onChange={setTrForm} />
-          <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 10, padding: "16px 18px" }}>
+          <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 3 }}>SHIPMENTS</div>
             <div style={{ fontSize: 12, color: "#667085", marginBottom: 10 }}>Link the shipments to this transport now or later</div>
             <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
@@ -698,13 +875,12 @@ export default function DigitollStart() {
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveTransport(activeTr?.id ?? null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
 
-      {/* ── LINK SHIPMENTS ─────────────────────────────────────────────────── */}
+      {/* ── LINK SHIPMENTS ────────────────────────────────────────────────── */}
       <Overlay open={isOpen("link-shipments")} onClose={close} wide>
         <ModalHeader title={`Link Shipments — ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} subtitle="Select which shipments should be included in this transport" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ marginBottom: 4 }}><StatusPill status={activeTr?.status ?? ""} /></div>
           <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
-
         </div>
         <ModalFooter>
           <button style={btnSec} onClick={close}>Cancel</button>
@@ -714,12 +890,12 @@ export default function DigitollStart() {
         </ModalFooter>
       </Overlay>
 
-      {/* ── RESOLVE ISSUES ─────────────────────────────────────────────────── */}
+      {/* ── RESOLVE ISSUES ────────────────────────────────────────────────── */}
       <Overlay open={isOpen("resolve-issues")} onClose={close} wide>
         <ModalHeader title={`Resolve Issues — ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} subtitle="The following linked shipments have incomplete data" onClose={close} />
         <div style={{ padding: "20px 22px" }}>
           <div style={{ marginBottom: 16 }}><StatusPill status={activeTr?.status ?? ""} /></div>
-          <div style={{ border: "1px solid #E4E7EC", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead><tr style={{ background: "#F9FAFB" }}>
                 {["Shipment","Actor","Status","Issue"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#667085", fontSize: 10.5, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{h}</th>)}
@@ -737,14 +913,14 @@ export default function DigitollStart() {
               </tbody>
             </table>
           </div>
-          <div style={{ marginTop: 14, background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#B54708" }}>
+          <div style={{ marginTop: 14, background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 2, padding: "10px 14px", fontSize: 12.5, color: "#B54708" }}>
             Open each shipment individually to complete its data before sending the transport.
           </div>
         </div>
         <ModalFooter><button style={btnSec} onClick={close}>Close</button></ModalFooter>
       </Overlay>
 
-      {/* ── SEND TRANSPORT ─────────────────────────────────────────────────── */}
+      {/* ── SEND TRANSPORT ────────────────────────────────────────────────── */}
       <Overlay open={isOpen("send-transport")} onClose={close}>
         <ModalHeader title={`Send Transport — ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} onClose={close} />
         <div style={{ padding: "20px 22px" }}>
@@ -757,13 +933,13 @@ export default function DigitollStart() {
           ) : (
             <>
               <div style={{ marginBottom: 16 }}><StatusPill status={activeTr?.status ?? ""} /></div>
-              <DetailField label="Reference"      value={activeTr?.reference} />
+              <DetailField label="Reference"       value={activeTr?.reference} />
               <DetailField label="Border crossing" value={activeTr?.border_crossing} />
               <DetailField label="Transport mode"  value={activeTr?.transport_mode} />
               <DetailField label="ETA"             value={fmtDate(activeTr?.eta ?? null)} />
               <DetailField label="Carrier"         value={activeTr?.carrier} />
               <DetailField label="Linked shipments" value={activeTr?.shipments?.length ?? 0} />
-              <div style={{ marginTop: 16, background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#175CD3" }}>
+              <div style={{ marginTop: 16, background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 2, padding: "10px 14px", fontSize: 12.5, color: "#175CD3" }}>
                 This will submit the transport declaration to Norwegian Customs (Tolletaten).
               </div>
             </>
@@ -772,21 +948,21 @@ export default function DigitollStart() {
         {!sendDone && (
           <ModalFooter>
             <button style={btnSec} onClick={close}>Cancel</button>
-            <button style={{ ...btnGreen, width: "auto", padding: "8px 20px", borderRadius: 8 }} onClick={() => sendRecord("transport", activeTr?.id ?? "")} disabled={saving}>
+            <button style={{ ...btnGreen, width: "auto", padding: "8px 20px", borderRadius: 2 }} onClick={() => sendRecord("transport", activeTr?.id ?? "")} disabled={saving}>
               {saving ? "Sending…" : "Confirm & send to Customs"}
             </button>
           </ModalFooter>
         )}
       </Overlay>
 
-      {/* ── NEW SHIPMENT ────────────────────────────────────────────────────── */}
+      {/* ── NEW SHIPMENT ──────────────────────────────────────────────────── */}
       <Overlay open={isOpen("new-shipment")} onClose={close} wide>
         <ModalHeader title="New Shipment (House)" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}><ShipmentFormBody /></div>
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveShipment(null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
 
-      {/* ── EDIT SHIPMENT (Complete) ─────────────────────────────────────────── */}
+      {/* ── EDIT SHIPMENT ─────────────────────────────────────────────────── */}
       <Overlay open={isOpen("edit-shipment")} onClose={close} wide>
         <ModalHeader title={`Complete Shipment — ${activeSh?.state_id ?? activeSh?.reference ?? ""}`} subtitle="Fill in the missing fields to complete this shipment" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -796,7 +972,7 @@ export default function DigitollStart() {
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveShipment(activeSh?.id ?? null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
 
-      {/* ── SEND SHIPMENT ───────────────────────────────────────────────────── */}
+      {/* ── SEND SHIPMENT ─────────────────────────────────────────────────── */}
       <Overlay open={isOpen("send-shipment")} onClose={close}>
         <ModalHeader title={`Send Shipment — ${activeSh?.state_id ?? activeSh?.reference ?? ""}`} onClose={close} />
         <div style={{ padding: "20px 22px" }}>
@@ -813,7 +989,7 @@ export default function DigitollStart() {
               <DetailField label="Actor"     value={activeSh?.actor} />
               <DetailField label="Transport" value={activeSh?.own_transport ? "Own transport" : activeSh?.transports?.reference ?? "Unlinked"} />
               <DetailField label="ETA"       value={fmtDate(activeSh?.eta ?? null)} />
-              <div style={{ marginTop: 16, background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#175CD3" }}>
+              <div style={{ marginTop: 16, background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 2, padding: "10px 14px", fontSize: 12.5, color: "#175CD3" }}>
                 This will submit the shipment declaration to Norwegian Customs (Tolletaten).
               </div>
             </>
@@ -822,19 +998,19 @@ export default function DigitollStart() {
         {!sendDone && (
           <ModalFooter>
             <button style={btnSec} onClick={close}>Cancel</button>
-            <button style={{ ...btnGreen, width: "auto", padding: "8px 20px", borderRadius: 8 }} onClick={() => sendRecord("shipment", activeSh?.id ?? "")} disabled={saving}>
+            <button style={{ ...btnGreen, width: "auto", padding: "8px 20px", borderRadius: 2 }} onClick={() => sendRecord("shipment", activeSh?.id ?? "")} disabled={saving}>
               {saving ? "Sending…" : "Confirm & send to Customs"}
             </button>
           </ModalFooter>
         )}
       </Overlay>
 
-      {/* ── REVIEW ERRORS ───────────────────────────────────────────────────── */}
+      {/* ── REVIEW ERRORS ─────────────────────────────────────────────────── */}
       <Overlay open={isOpen("review-errors")} onClose={close}>
         <ModalHeader title={`Review Errors — ${activeData && "state_id" in activeData ? activeData.state_id ?? "" : ""}`} subtitle="The declaration was rejected by Norwegian Customs" onClose={close} />
         <div style={{ padding: "20px 22px" }}>
           <div style={{ marginBottom: 16 }}><StatusPill status="rejected" /></div>
-          <div style={{ background: "#FEF3F2", border: "1px solid #FECDCA", borderRadius: 8, padding: "14px 16px", marginBottom: 14 }}>
+          <div style={{ background: "#FEF3F2", border: "1px solid #FECDCA", borderRadius: 2, padding: "14px 16px", marginBottom: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#B42318", marginBottom: 8 }}>Rejection reasons from Tolletaten:</div>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "#344054", lineHeight: 1.8 }}>
               <li>Missing or invalid HS code on one or more items</li>
@@ -842,7 +1018,7 @@ export default function DigitollStart() {
               <li>Importer VAT number not recognised</li>
             </ul>
           </div>
-          <div style={{ background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#B54708" }}>
+          <div style={{ background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 2, padding: "10px 14px", fontSize: 12.5, color: "#B54708" }}>
             Correct the errors and resubmit. The declaration has been saved as a draft.
           </div>
         </div>
@@ -852,7 +1028,7 @@ export default function DigitollStart() {
         </ModalFooter>
       </Overlay>
 
-      {/* ── VIEW TRANSPORT (readonly) ────────────────────────────────────────── */}
+      {/* ── VIEW TRANSPORT ────────────────────────────────────────────────── */}
       <Overlay open={isOpen("view-transport")} onClose={close}>
         <ModalHeader title={`Transport ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} subtitle={activeTr?.reference} onClose={close} />
         <div style={{ padding: "20px 22px" }}>
@@ -871,7 +1047,7 @@ export default function DigitollStart() {
         <ModalFooter><button style={btnSec} onClick={close}>Close</button></ModalFooter>
       </Overlay>
 
-      {/* ── VIEW SHIPMENT (readonly) ─────────────────────────────────────────── */}
+      {/* ── VIEW SHIPMENT ─────────────────────────────────────────────────── */}
       <Overlay open={isOpen("view-shipment")} onClose={close}>
         <ModalHeader title={`Shipment ${activeSh?.state_id ?? activeSh?.reference ?? ""}`} subtitle={activeSh?.reference} onClose={close} />
         <div style={{ padding: "20px 22px" }}>
