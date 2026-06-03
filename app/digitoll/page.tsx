@@ -1105,7 +1105,21 @@ export default function DigitollStart() {
         </div>
         <ModalFooter>
           <button style={btnSec} onClick={close}>Close</button>
-          <button style={btnPri} onClick={close}>Edit & resubmit</button>
+          <button style={btnPri} onClick={() => {
+            if (activeTr) {
+              setTrForm({ transport_mode: activeTr.transport_mode ?? "Road", identifier: activeTr.carrier ?? "", border_crossing: activeTr.border_crossing ?? "", eta: toDatetimeLocal(activeTr.eta) });
+              setTrLinkedShipments(activeTr.shipments?.map(s => s.id) ?? []);
+              setTrShipmentSearch("");
+              setActive({ type: "edit-transport", data: activeTr });
+            } else if (activeSh) {
+              setShLines([defaultLine()]);
+              setShTransportLink(activeSh.own_transport ? "own" : activeSh.transport_id ? "existing" : "decide_later");
+              setShTransportSearch("");
+              setShSelectedTransport(activeSh.transport_id ?? "");
+              setShOwnTransport(emptyTrForm);
+              setActive({ type: "edit-shipment", data: activeSh });
+            }
+          }}>Edit & resubmit</button>
         </ModalFooter>
       </Overlay>
 
