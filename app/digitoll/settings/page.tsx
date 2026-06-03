@@ -68,16 +68,16 @@ const STORAGE_KEY_D  = "settings_fields_digitoll";
 const STORAGE_KEY_SD = "settings_fields_declaration";
 
 // ── Style tokens ──────────────────────────────────────────────────────────────
-const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, background: "#0B1F3A", color: "#fff", fontSize: 12.5, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "inherit" };
+const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, background: "#003160", color: "#fff", fontSize: 12.5, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "inherit" };
 const btnSec: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "#fff", color: "#344054", fontSize: 12.5, fontWeight: 500, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit" };
 const btnDanger: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 6, background: "#FEF3F2", color: "#B42318", fontSize: 11.5, fontWeight: 500, border: "1px solid #FECDCA", cursor: "pointer", fontFamily: "inherit" };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 8, fontSize: 13, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
-const tabBtn = (active: boolean): React.CSSProperties => ({ padding: "8px 18px", borderRadius: 8, border: "none", background: active ? "#0B1F3A" : "transparent", color: active ? "#fff" : "#667085", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" });
+const tabBtn = (active: boolean): React.CSSProperties => ({ padding: "8px 18px", borderRadius: 8, border: "none", background: active ? "#003160" : "transparent", color: active ? "#fff" : "#667085", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" });
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div onClick={() => onChange(!on)} style={{ width: 36, height: 20, borderRadius: 10, background: on ? "#0B1F3A" : "#D0D5DD", cursor: "pointer", position: "relative", transition: "background .15s", flexShrink: 0 }}>
+    <div onClick={() => onChange(!on)} style={{ width: 36, height: 20, borderRadius: 10, background: on ? "#003160" : "#D0D5DD", cursor: "pointer", position: "relative", transition: "background .15s", flexShrink: 0 }}>
       <div style={{ position: "absolute", top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
     </div>
   );
@@ -204,7 +204,7 @@ export default function SettingsPage() {
   const disabledCount = fields.filter(f => !f.enabled).length;
   const customCount   = fields.filter(f => f.custom).length;
 
-  const fBtn = (active: boolean): React.CSSProperties => ({ padding: "4px 12px", borderRadius: 16, border: `1px solid ${active ? "#0B1F3A" : "#D0D5DD"}`, background: active ? "#0B1F3A" : "#fff", color: active ? "#fff" : "#344054", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" });
+  const fBtn = (active: boolean): React.CSSProperties => ({ padding: "4px 12px", borderRadius: 16, border: `1px solid ${active ? "#003160" : "#D0D5DD"}`, background: active ? "#003160" : "#fff", color: active ? "#fff" : "#344054", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" });
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 24, fontFamily: "'Inter', sans-serif" }}>

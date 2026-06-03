@@ -124,7 +124,7 @@ function DeclBadge({ status }: { status: string }) {
 }
 
 // ── Style tokens ──────────────────────────────────────────────────────────────
-const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 2, background: "#0B1F3A", color: "#fff", fontSize: 12.5, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "inherit" };
+const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 2, background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "inherit" };
 const btnSec: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 2, background: "#fff", color: "#344054", fontSize: 12.5, fontWeight: 500, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit" };
 const btnGreen: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 0", borderRadius: 2, background: "#17B26A", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", width: "100%" };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 13, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
@@ -389,6 +389,106 @@ function CreateMenu({ onNewTransport, onNewShipment, onClose }: {
   );
 }
 
+// ── Shipment form body (extern komponent för att undvika fokus-problem) ─────────
+interface ShipmentFormProps {
+  lines: ShipmentLine[];
+  setLines: React.Dispatch<React.SetStateAction<ShipmentLine[]>>;
+  transportLink: TransportLink;
+  setTransportLink: (v: TransportLink) => void;
+  selectedTransport: string;
+  setSelectedTransport: (v: string) => void;
+  transportSearch: string;
+  setTransportSearch: (v: string) => void;
+  ownTransport: { transport_mode: string; identifier: string; border_crossing: string; eta: string };
+  setOwnTransport: (v: ShipmentFormProps["ownTransport"]) => void;
+  transports: Transport[];
+  saving: boolean;
+  onSave: () => void;
+  defaultLine: () => ShipmentLine;
+}
+
+function ShipmentFormBody({
+  lines, setLines, transportLink, setTransportLink,
+  selectedTransport, setSelectedTransport, transportSearch, setTransportSearch,
+  ownTransport, setOwnTransport, transports, saving, onSave, defaultLine,
+}: ShipmentFormProps) {
+  return (
+    <>
+      <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+          <thead><tr style={{ background: "#F9FAFB" }}>
+            {["#","IMPORTER","RECEIVER","PRODUCT DESCRIPTION","GROSS WEIGHT",""].map((h,i) => (
+              <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10.5, fontWeight: 700, color: "#667085", letterSpacing: ".04em", borderBottom: "1px solid #E4E7EC" }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {lines.map((line, i) => (
+              <tr key={line.id} style={{ borderBottom: "1px solid #F2F4F7" }}>
+                <td style={{ padding: "6px 10px", color: "#98A2B3", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "6px 8px" }}>
+                  <select style={{ ...inp, fontSize: 12, padding: "5px 8px" }} value={line.importer} onChange={e => setLines(ls => ls.map(l => l.id === line.id ? { ...l, importer: e.target.value } : l))}>
+                    <option value="">Select</option>
+                    {["Exporter Sv X AB","Exporter Sv Y AB","Exporter Sv Z AB"].map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: "6px 8px" }}>
+                  <select style={{ ...inp, fontSize: 12, padding: "5px 8px" }} value={line.receiver} onChange={e => setLines(ls => ls.map(l => l.id === line.id ? { ...l, receiver: e.target.value } : l))}>
+                    <option value="">Select</option>
+                    {["Company X AS","Company Y AS","Company Z AS"].map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: "6px 8px" }}>
+                  <input style={{ ...inp, fontSize: 12, padding: "5px 8px" }} value={line.product_description} onChange={e => setLines(ls => ls.map(l => l.id === line.id ? { ...l, product_description: e.target.value } : l))} placeholder="Add" />
+                </td>
+                <td style={{ padding: "6px 8px" }}>
+                  <input style={{ ...inp, fontSize: 12, padding: "5px 8px", textAlign: "right" as const }} type="number" value={line.gross_weight} onChange={e => setLines(ls => ls.map(l => l.id === line.id ? { ...l, gross_weight: e.target.value } : l))} placeholder="0.00" />
+                </td>
+                <td style={{ padding: "6px 8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {i === lines.length - 1 && <button onClick={() => setLines(ls => [...ls, defaultLine()])} style={{ width: 22, height: 22, borderRadius: "50%", background: "#175CD3", color: "#fff", border: "none", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
+                    {lines.length > 1 && <button onClick={() => setLines(ls => ls.filter(l => l.id !== line.id))} style={{ width: 22, height: 22, borderRadius: 2, background: "#FEF3F2", color: "#D92D20", border: "none", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 12 }}>TRANSPORT</div>
+        <div style={{ display: "flex", gap: 20, marginBottom: 14 }}>
+          {([ ["decide_later","Decide Later"], ["own","Own Transport"], ["existing","Connect to existing Transport"] ] as [TransportLink, string][]).map(([val, label]) => (
+            <label key={val} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: 13, color: "#344054" }}>
+              <div onClick={() => setTransportLink(val as TransportLink)} style={{ width: 16, height: 16, border: `2px solid ${transportLink === val ? "#175CD3" : "#D0D5DD"}`, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                {transportLink === val && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#175CD3", display: "block" }} />}
+              </div>
+              {label}
+            </label>
+          ))}
+        </div>
+
+        {transportLink === "own" && (
+          <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Own Transport</div>
+            <TransportForm form={ownTransport} onChange={setOwnTransport} />
+            <button onClick={onSave} disabled={saving} style={btnGreen}>
+              {saving ? "Creating…" : "SEND SHIPMENT"}
+            </button>
+          </div>
+        )}
+
+        {transportLink === "existing" && (
+          <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 12 }}>Connect to Existing Transport</div>
+            <TransportPickerTable transports={transports} selected={selectedTransport} onSelect={setSelectedTransport} search={transportSearch} onSearch={setTransportSearch} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DigitollStart() {
   const [transports, setTransports] = useState<Transport[]>([]);
@@ -500,7 +600,13 @@ export default function DigitollStart() {
   // ── Save helpers ──────────────────────────────────────────────────────────
   async function saveTransport(id: string | null) {
     setSaving(true);
-    const body = { reference: trForm.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: trForm.transport_mode, border_crossing: trForm.border_crossing, eta: trForm.eta, carrier: trForm.identifier, status: "incomplete" };
+    const hasRequiredFields = !!(trForm.transport_mode && trForm.border_crossing && trForm.eta);
+    const newStatus = !hasRequiredFields
+      ? "incomplete"
+      : trLinkedShipments.length > 0
+        ? "ready"
+        : "missing_shipments";
+    const body = { reference: trForm.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: trForm.transport_mode, border_crossing: trForm.border_crossing, eta: trForm.eta, carrier: trForm.identifier, status: newStatus };
     const res = id
       ? await fetch(`/api/transports/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       : await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -514,7 +620,31 @@ export default function DigitollStart() {
 
   async function linkShipmentsToTransport(transportId: string) {
     setSaving(true);
-    await Promise.all(trLinkedShipments.map(sid => fetch(`/api/shipments/${sid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transport_id: transportId }) })));
+
+    // Länka alla valda shipments till transporten
+    await Promise.all(trLinkedShipments.map(sid =>
+      fetch(`/api/shipments/${sid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transport_id: transportId }),
+      })
+    ));
+
+    // Hämta de länkade shipmentsens status för att avgöra transportstatus
+    const linkedStatuses = await Promise.all(
+      trLinkedShipments.map(sid =>
+        fetch(`/api/shipments/${sid}`).then(r => r.json()).then(s => s.status as string)
+      )
+    );
+    const allComplete = linkedStatuses.every(s => ["ready","complete_linked","sent","received","accepted"].includes(s));
+    const newTransportStatus = allComplete ? "ready" : "awaiting_shipments";
+
+    await fetch(`/api/transports/${transportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newTransportStatus }),
+    });
+
     setSaving(false); close(); load();
   }
 
@@ -522,12 +652,20 @@ export default function DigitollStart() {
     setSaving(true);
     let transportId = null;
     if (shTransportLink === "own") {
-      const trRes = await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: shOwnTransport.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: shOwnTransport.transport_mode, border_crossing: shOwnTransport.border_crossing, eta: shOwnTransport.eta, status: "incomplete" }) });
+      const hasOwnTrFields = !!(shOwnTransport.transport_mode && shOwnTransport.border_crossing && shOwnTransport.eta);
+      const ownTrStatus = hasOwnTrFields ? "missing_shipments" : "incomplete";
+      const trRes = await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: shOwnTransport.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: shOwnTransport.transport_mode, border_crossing: shOwnTransport.border_crossing, eta: shOwnTransport.eta, status: ownTrStatus }) });
       if (trRes.ok) { const tr = await trRes.json(); transportId = tr.id; }
     } else if (shTransportLink === "existing") {
       transportId = shSelectedTransport || null;
     }
-    const body = { transport_id: transportId, own_transport: shTransportLink === "own", status: "incomplete", actor: shLines[0]?.importer || "" };
+    // Shipment is ready if it has importer + receiver + product on at least one line
+    const hasRequiredLines = shLines.some(l => l.importer && l.receiver && l.product_description);
+    const isLinked = shTransportLink === "own" || (shTransportLink === "existing" && !!shSelectedTransport);
+    const shStatus = hasRequiredLines
+      ? isLinked ? "ready" : "complete_unlinked"
+      : "incomplete";
+    const body = { transport_id: transportId, own_transport: shTransportLink === "own", status: shStatus, actor: shLines[0]?.importer || "" };
     const res = id
       ? await fetch(`/api/shipments/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       : await fetch("/api/shipments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, reference: `SH-${Date.now().toString().slice(-4)}` }) });
@@ -629,8 +767,8 @@ export default function DigitollStart() {
               <td style={{ padding: "9px 8px" }}><StatusPill status={d.status} /></td>
               <td style={{ padding: "9px 8px" }}>
                 {isActionable
-                  ? <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ ...btnPri, padding: "4px 10px", fontSize: 11.5, whiteSpace: "nowrap" as const }}>{next}</button>
-                  : <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 2, background: "transparent", color: "#175CD3", fontSize: 11.5, fontWeight: 500, border: "1px solid #B2CCFF", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>View</button>}
+                  ? <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ ...btnPri, padding: "4px 10px", fontSize: 11.5, whiteSpace: "nowrap" as const, background: "#446BF9" }}>{next}</button>
+                  : <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 2, background: "transparent", color: "#446BF9", fontSize: 11.5, fontWeight: 500, border: "1px solid #446BF9", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>View</button>}
               </td>
               <td style={{ padding: "9px 8px" }}><DeclBadge status={d.declaration_status} /></td>
               <td style={{ padding: "9px 4px" }}><button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#98A2B3", fontSize: 18 }}>⋯</button></td>
@@ -641,84 +779,7 @@ export default function DigitollStart() {
     );
   }
 
-  // ── Shared shipment form body ─────────────────────────────────────────────
-  function ShipmentFormBody() {
-    return (
-      <>
-        <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-            <thead><tr style={{ background: "#F9FAFB" }}>
-              {["#","IMPORTER","RECEIVER","PRODUCT DESCRIPTION","GROSS WEIGHT",""].map((h,i) => (
-                <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10.5, fontWeight: 700, color: "#667085", letterSpacing: ".04em", borderBottom: "1px solid #E4E7EC" }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {shLines.map((line, i) => (
-                <tr key={line.id} style={{ borderBottom: "1px solid #F2F4F7" }}>
-                  <td style={{ padding: "6px 10px", color: "#98A2B3", fontSize: 12 }}>{i + 1}</td>
-                  <td style={{ padding: "6px 8px" }}>
-                    <select style={{ ...inp, fontSize: 12, padding: "5px 8px" }} value={line.importer} onChange={e => setShLines(ls => ls.map(l => l.id === line.id ? { ...l, importer: e.target.value } : l))}>
-                      <option value="">Select</option>
-                      {["Exporter Sv X AB","Exporter Sv Y AB","Exporter Sv Z AB"].map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding: "6px 8px" }}>
-                    <select style={{ ...inp, fontSize: 12, padding: "5px 8px" }} value={line.receiver} onChange={e => setShLines(ls => ls.map(l => l.id === line.id ? { ...l, receiver: e.target.value } : l))}>
-                      <option value="">Select</option>
-                      {["Company X AS","Company Y AS","Company Z AS"].map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding: "6px 8px" }}>
-                    <input style={{ ...inp, fontSize: 12, padding: "5px 8px" }} value={line.product_description} onChange={e => setShLines(ls => ls.map(l => l.id === line.id ? { ...l, product_description: e.target.value } : l))} placeholder="Add" />
-                  </td>
-                  <td style={{ padding: "6px 8px" }}>
-                    <input style={{ ...inp, fontSize: 12, padding: "5px 8px", textAlign: "right" as const }} type="number" value={line.gross_weight} onChange={e => setShLines(ls => ls.map(l => l.id === line.id ? { ...l, gross_weight: e.target.value } : l))} placeholder="0.00" />
-                  </td>
-                  <td style={{ padding: "6px 8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {i === shLines.length - 1 && <button onClick={() => setShLines(ls => [...ls, defaultLine()])} style={{ width: 22, height: 22, borderRadius: "50%", background: "#175CD3", color: "#fff", border: "none", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
-                      {shLines.length > 1 && <button onClick={() => setShLines(ls => ls.filter(l => l.id !== line.id))} style={{ width: 22, height: 22, borderRadius: 2, background: "#FEF3F2", color: "#D92D20", border: "none", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 12 }}>TRANSPORT</div>
-          <div style={{ display: "flex", gap: 20, marginBottom: 14 }}>
-            {([ ["decide_later","Decide Later"], ["own","Own Transport"], ["existing","Connect to existing Transport"] ] as [TransportLink, string][]).map(([val, label]) => (
-              <label key={val} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: 13, color: "#344054" }}>
-                <div onClick={() => setShTransportLink(val)} style={{ width: 16, height: 16, border: `2px solid ${shTransportLink === val ? "#175CD3" : "#D0D5DD"}`, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                  {shTransportLink === val && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#175CD3", display: "block" }} />}
-                </div>
-                {label}
-              </label>
-            ))}
-          </div>
-
-          {shTransportLink === "own" && (
-            <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Own Transport</div>
-              <TransportForm form={shOwnTransport} onChange={setShOwnTransport} />
-              <button onClick={() => saveShipment(active && "data" in active ? (active.data as Shipment).id : null)} disabled={saving} style={btnGreen}>
-                {saving ? "Creating…" : "SEND SHIPMENT"}
-              </button>
-            </div>
-          )}
-
-          {shTransportLink === "existing" && (
-            <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 12 }}>Connect to Existing Transport</div>
-              <TransportPickerTable transports={transports} selected={shSelectedTransport} onSelect={setShSelectedTransport} search={shTransportSearch} onSearch={setShTransportSearch} />
-            </div>
-          )}
-        </div>
-      </>
-    );
-  }
+  // ShipmentFormBody är nu en riktig komponent med props för att undvika remount-problem
 
   const isOpen = (t: string) => active?.type === t;
   const activeData = active && "data" in active ? active.data : null;
@@ -948,6 +1009,14 @@ export default function DigitollStart() {
         {!sendDone && (
           <ModalFooter>
             <button style={btnSec} onClick={close}>Cancel</button>
+            <button style={btnSec} onClick={() => {
+              if (activeTr) {
+                setTrForm({ transport_mode: activeTr.transport_mode ?? "Road", identifier: activeTr.carrier ?? "", border_crossing: activeTr.border_crossing ?? "", eta: toDatetimeLocal(activeTr.eta) });
+                setTrLinkedShipments(activeTr.shipments?.map(s => s.id) ?? []);
+                setTrShipmentSearch("");
+                setActive({ type: "edit-transport", data: activeTr });
+              }
+            }}>Edit</button>
             <button style={{ ...btnGreen, width: "auto", padding: "8px 20px", borderRadius: 2 }} onClick={() => sendRecord("transport", activeTr?.id ?? "")} disabled={saving}>
               {saving ? "Sending…" : "Confirm & send to Customs"}
             </button>
@@ -958,7 +1027,9 @@ export default function DigitollStart() {
       {/* ── NEW SHIPMENT ──────────────────────────────────────────────────── */}
       <Overlay open={isOpen("new-shipment")} onClose={close} wide>
         <ModalHeader title="New Shipment (House)" onClose={close} />
-        <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}><ShipmentFormBody /></div>
+        <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
+          <ShipmentFormBody lines={shLines} setLines={setShLines} transportLink={shTransportLink} setTransportLink={setShTransportLink} selectedTransport={shSelectedTransport} setSelectedTransport={setShSelectedTransport} transportSearch={shTransportSearch} setTransportSearch={setShTransportSearch} ownTransport={shOwnTransport} setOwnTransport={setShOwnTransport} transports={transports} saving={saving} onSave={() => saveShipment(null)} defaultLine={defaultLine} />
+        </div>
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveShipment(null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
 
@@ -967,7 +1038,7 @@ export default function DigitollStart() {
         <ModalHeader title={`Complete Shipment — ${activeSh?.state_id ?? activeSh?.reference ?? ""}`} subtitle="Fill in the missing fields to complete this shipment" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ marginBottom: 4 }}><StatusPill status={activeSh?.status ?? ""} /></div>
-          <ShipmentFormBody />
+          <ShipmentFormBody lines={shLines} setLines={setShLines} transportLink={shTransportLink} setTransportLink={setShTransportLink} selectedTransport={shSelectedTransport} setSelectedTransport={setShSelectedTransport} transportSearch={shTransportSearch} setTransportSearch={setShTransportSearch} ownTransport={shOwnTransport} setOwnTransport={setShOwnTransport} transports={transports} saving={saving} onSave={() => saveShipment(activeSh?.id ?? null)} defaultLine={defaultLine} />
         </div>
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveShipment(activeSh?.id ?? null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
@@ -998,6 +1069,16 @@ export default function DigitollStart() {
         {!sendDone && (
           <ModalFooter>
             <button style={btnSec} onClick={close}>Cancel</button>
+            <button style={btnSec} onClick={() => {
+              if (activeSh) {
+                setShLines([defaultLine()]);
+                setShTransportLink(activeSh.own_transport ? "own" : activeSh.transport_id ? "existing" : "decide_later");
+                setShTransportSearch("");
+                setShSelectedTransport(activeSh.transport_id ?? "");
+                setShOwnTransport(emptyTrForm);
+                setActive({ type: "edit-shipment", data: activeSh });
+              }
+            }}>Edit</button>
             <button style={{ ...btnGreen, width: "auto", padding: "8px 20px", borderRadius: 2 }} onClick={() => sendRecord("shipment", activeSh?.id ?? "")} disabled={saving}>
               {saving ? "Sending…" : "Confirm & send to Customs"}
             </button>
@@ -1044,7 +1125,19 @@ export default function DigitollStart() {
           <DetailField label="Declaration"      value={<DeclBadge status={activeTr?.declaration_status ?? "none"} />} />
           <DetailField label="Linked shipments" value={activeTr?.shipments?.length ?? 0} />
         </div>
-        <ModalFooter><button style={btnSec} onClick={close}>Close</button></ModalFooter>
+        <ModalFooter>
+          <button style={btnSec} onClick={close}>Close</button>
+          {!["sent","received","accepted","arrived","rejected"].includes(activeTr?.status ?? "") && (
+            <button style={btnPri} onClick={() => {
+              if (activeTr) {
+                setTrForm({ transport_mode: activeTr.transport_mode ?? "Road", identifier: activeTr.carrier ?? "", border_crossing: activeTr.border_crossing ?? "", eta: toDatetimeLocal(activeTr.eta) });
+                setTrLinkedShipments(activeTr.shipments?.map(s => s.id) ?? []);
+                setTrShipmentSearch("");
+                setActive({ type: "edit-transport", data: activeTr });
+              }
+            }}>Edit</button>
+          )}
+        </ModalFooter>
       </Overlay>
 
       {/* ── VIEW SHIPMENT ─────────────────────────────────────────────────── */}
@@ -1060,7 +1153,21 @@ export default function DigitollStart() {
           <DetailField label="Responsible" value={activeSh?.responsible} />
           <DetailField label="Declaration" value={<DeclBadge status={activeSh?.declaration_status ?? "none"} />} />
         </div>
-        <ModalFooter><button style={btnSec} onClick={close}>Close</button></ModalFooter>
+        <ModalFooter>
+          <button style={btnSec} onClick={close}>Close</button>
+          {!["sent","received","accepted","arrived","rejected"].includes(activeSh?.status ?? "") && (
+            <button style={btnPri} onClick={() => {
+              if (activeSh) {
+                setShLines([defaultLine()]);
+                setShTransportLink(activeSh.own_transport ? "own" : activeSh.transport_id ? "existing" : "decide_later");
+                setShTransportSearch("");
+                setShSelectedTransport(activeSh.transport_id ?? "");
+                setShOwnTransport(emptyTrForm);
+                setActive({ type: "edit-shipment", data: activeSh });
+              }
+            }}>Edit</button>
+          )}
+        </ModalFooter>
       </Overlay>
     </div>
   );

@@ -72,7 +72,7 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
             {/* Material icon via ligature — receipt_long */}
             <span style={{
               fontFamily: "Material Icons",
-              fontSize: 22,
+              fontSize: 18,
               color: "#003160",
               lineHeight: 1,
               userSelect: "none",
@@ -108,7 +108,7 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
               gap: 0,
               color: active ? "#003160" : "#6B7280",
               fontWeight: active ? 600 : 400,
-              fontSize: 12,
+              fontSize: 13.5,
               textDecoration: "none",
               background: active ? "#E8EBF0" : "#F0F2F5",
               borderBottom: "1px solid #E2E5EA",
@@ -167,15 +167,12 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
 
           {/* Right icons */}
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
-          {(["add", "settings", "history", "notifications", "apps", "grid_view"] as const).map((icon) => (
-          <div key={icon}
-          style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 6 }}
-          onClick={() => {
-          if (icon === "add") {
-        window.dispatchEvent(new CustomEvent("digitoll:open-create-menu"));
-      }
-    }}
-  >
+            {(["add", "settings", "history", "notifications", "apps", "grid_view"] as const).map((icon) => (
+              <div key={icon} style={{
+                width: 32, height: 32,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", borderRadius: 6,
+              }}>
                 <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "rgba(255,255,255,0.7)", lineHeight: 1, userSelect: "none" }}>{icon}</span>
               </div>
             ))}

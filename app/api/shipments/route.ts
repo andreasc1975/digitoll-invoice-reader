@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       responsible:     body.responsible || null,
       actor:           body.actor || null,
       own_transport:   body.own_transport || false,
-      status:          "incomplete",
+      status:          body.status || "incomplete",
       declaration_status: "none",
     })
     .select()
