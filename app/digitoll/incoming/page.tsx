@@ -160,6 +160,7 @@ export default function IncomingDocuments() {
   const [view, setView]                 = useState<ViewMode>("table");
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
   const [processing, setProcessing]     = useState(false);
+  const [progress, setProgress]         = useState(0);
   const [fileUrl, setFileUrl]           = useState<string | null>(null);
   const [fileType, setFileType]         = useState<string>("application/pdf");
   const [destination, setDestination]   = useState<Destination>(null);
@@ -185,6 +186,45 @@ export default function IncomingDocuments() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Simulerad progressbar — snabb i början, saknar in mot 85%, väntar på svar
+  function startProgress() {
+    setProgress(0);
+    let current = 0;
+    const steps = [
+      { target: 15, duration: 300 },
+      { target: 35, duration: 500 },
+      { target: 55, duration: 700 },
+      { target: 72, duration: 900 },
+      { target: 85, duration: 1200 },
+    ];
+    let i = 0;
+    function runStep() {
+      if (i >= steps.length) return;
+      const { target, duration } = steps[i];
+      const start = current;
+      const startTime = Date.now();
+      function animate() {
+        const elapsed = Date.now() - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 2); // ease-out
+        current = start + (target - start) * eased;
+        setProgress(Math.round(current));
+        if (t < 1) requestAnimationFrame(animate);
+        else { i++; runStep(); }
+      }
+      requestAnimationFrame(animate);
+    }
+    runStep();
+  }
+
+  function completeProgress(cb: () => void) {
+    setProgress(95);
+    setTimeout(() => {
+      setProgress(100);
+      setTimeout(cb, 400);
+    }, 300);
+  }
 
   // Load fields when activeInvoice changes
   useEffect(() => {
@@ -223,7 +263,7 @@ export default function IncomingDocuments() {
     setFileType(file.type);
     setDestination(null); setCreateType(null);
     setLocalFields({});
-    setView("split"); setProcessing(true);
+    setView("split"); setProcessing(true); startProgress();
 
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch("/api/invoices", { method: "POST", body: fd });
@@ -245,7 +285,7 @@ export default function IncomingDocuments() {
         setLocalFields(map);
       }
     }
-    setProcessing(false);
+    completeProgress(() => setProcessing(false));
   }
 
   function openExisting(inv: Invoice) {
@@ -462,10 +502,34 @@ export default function IncomingDocuments() {
         </div>
         <div style={{ flex: 1, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {processing ? (
-            <div style={{ textAlign: "center", color: "#667085" }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>Extracting data with AI…</div>
-              <div style={{ fontSize: 11, color: "#98A2B3", marginTop: 6 }}>This usually takes 8–15 seconds</div>
+            <div style={{ textAlign: "center", color: "#667085", padding: "0 32px", width: "100%" }}>
+              <div style={{ fontSize: 36, marginBottom: 16 }}>⏳</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#344054", marginBottom: 6 }}>Extracting data with AI…</div>
+              <div style={{ fontSize: 11, color: "#98A2B3", marginBottom: 20 }}>This usually takes 8–15 seconds</div>
+              <div style={{ width: "100%", height: 6, background: "#E4E7EC", borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
+                <div style={{
+                  height: "100%",
+                  width: `${progress}%`,
+                  background: progress === 100 ? "#12B76A" : "#446BF9",
+                  borderRadius: 2,
+                  transition: progress === 0 ? "none" : "width 0.3s ease-out",
+                }} />
+              </div>
+              <div style={{ fontSize: 11, color: "#446BF9", fontWeight: 600 }}>{Math.round(progress)}%</div>
+              {/* Step indicators */}
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20, gap: 4 }}>
+                {[
+                  { label: "Uploading",  threshold: 20 },
+                  { label: "Reading",    threshold: 45 },
+                  { label: "Extracting", threshold: 70 },
+                  { label: "Finalizing", threshold: 90 },
+                ].map(step => (
+                  <div key={step.label} style={{ flex: 1, textAlign: "center" as const }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: progress >= step.threshold ? "#12B76A" : "#E4E7EC", margin: "0 auto 4px", transition: "background 0.3s" }} />
+                    <div style={{ fontSize: 9.5, color: progress >= step.threshold ? "#027A48" : "#98A2B3", fontWeight: progress >= step.threshold ? 600 : 400, transition: "color 0.3s" }}>{step.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : fileUrl ? (
             fileType === "application/pdf"
@@ -505,9 +569,15 @@ export default function IncomingDocuments() {
 
         <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
           {processing ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#667085", padding: "24px 0" }}>
-              <span style={{ fontSize: 18 }}>⏳</span>
-              <span style={{ fontSize: 13 }}>AI is extracting data…</span>
+            <div style={{ padding: "24px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#667085", marginBottom: 12 }}>
+                <span style={{ fontSize: 16 }}>⏳</span>
+                <span style={{ fontSize: 13 }}>AI is extracting data…</span>
+                <span style={{ fontSize: 12, color: "#446BF9", fontWeight: 600, marginLeft: "auto" }}>{progress}%</span>
+              </div>
+              <div style={{ height: 4, background: "#E4E7EC", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${progress}%`, background: "#446BF9", borderRadius: 2, transition: "width 0.3s ease-out" }} />
+              </div>
             </div>
           ) : (
             <>
@@ -729,6 +799,7 @@ export default function IncomingDocuments() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
+      <style>{`@keyframes pulse { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.1); opacity:0.7; } }`}</style>
       {view === "table" ? TableView : SplitView}
       {CmsOverlay}
       <input ref={fileInput} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => handleFiles(e.target.files)} />
