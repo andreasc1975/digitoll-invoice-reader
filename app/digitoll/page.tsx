@@ -742,7 +742,7 @@ export default function DigitollStart() {
     if (rows.length === 0) return null;
     return (
       <>
-        <tr><td colSpan={14} style={{ background: "#F9FAFB", fontSize: 10, fontWeight: 700, color: "#98A2B3", padding: "5px 14px", letterSpacing: ".07em", textTransform: "uppercase" as const, borderBottom: "1px solid #E4E7EC" }}>{heading}</td></tr>
+        <tr><td colSpan={14} style={{ background: "#fff", fontSize: 10, fontWeight: 700, color: "#98A2B3", padding: "8px 14px 4px", letterSpacing: ".07em", textTransform: "uppercase" as const, borderBottom: "1px solid #E4E7EC" }}>{heading}</td></tr>
         {rows.map(row => {
           const d = row.data;
           const isTransport = row.kind === "transport";
@@ -752,7 +752,7 @@ export default function DigitollStart() {
             ? (d as Shipment).own_transport ? "Own transport" : (d as Shipment).transports ? `Incl. ${(d as Shipment).transports!.reference}` : "Unlinked"
             : (d as Transport).transport_mode ?? "—";
           return (
-            <tr key={d.id} onClick={() => openRow(row)} style={{ borderBottom: "1px solid #F2F4F7", cursor: "pointer" }}
+            <tr key={d.id} onClick={() => openRow(row)} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
               <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 2, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
               <td style={{ padding: "9px 8px", fontWeight: 600, color: "#175CD3", fontSize: 12.5 }}>{d.state_id ?? "—"}</td>
@@ -799,7 +799,7 @@ export default function DigitollStart() {
       )}
 
       {/* ── Filter bar ────────────────────────────────────────────────────── */}
-      <div style={{ padding: "14px 20px 0", background: "#F0F2F5" }}>
+      <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
         {/* Filter row */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
           {(() => {
@@ -852,7 +852,7 @@ export default function DigitollStart() {
 
         {/* Search row — full width, under filter */}
         <div style={{ marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #D0D5DD", borderRadius: 2, background: "#fff" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff" }}>
             <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "#98A2B3", lineHeight: 1, userSelect: "none" as const }}>search</span>
             <input
               value={search}
@@ -868,8 +868,8 @@ export default function DigitollStart() {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 20px" }}>
-        <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ background: "#fff" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: 12.5 }}>
             <colgroup>
               <col style={{ width: 38 }} /><col style={{ width: 60 }} /><col style={{ width: 75 }} />
@@ -879,7 +879,7 @@ export default function DigitollStart() {
               <col style={{ width: 90 }} /><col style={{ width: 36 }} />
             </colgroup>
             <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E4E7EC" }}>
+              <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
                 {([
                   ["", null], ["State", "state"], ["ID", "id"], ["SH", "sh"],
                   ["Date", "date"], ["Actor", "actor"], ["Responsible", "resp"],
