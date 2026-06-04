@@ -824,14 +824,12 @@ export default function DigitollStart() {
             return filters.map(([key, label, count]) => (
               <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
                 {label}
-                {filter !== key && (
-                  <span style={{
-                    background: "#003160",
-                    color: "#fff",
-                    borderRadius: 2, padding: "1px 7px", fontSize: 10, fontWeight: 700,
-                    minWidth: 20, textAlign: "center" as const, lineHeight: "16px",
-                  }}>{count}</span>
-                )}
+                <span style={{
+                  background: filter === key ? "rgba(255,255,255,0.25)" : "#003160",
+                  color: "#fff",
+                  borderRadius: 2, padding: "1px 7px", fontSize: 10, fontWeight: 700,
+                  minWidth: 20, textAlign: "center" as const, lineHeight: "16px",
+                }}>{count}</span>
               </button>
             ));
           })()}
@@ -843,7 +841,7 @@ export default function DigitollStart() {
               { icon: "↺", title: "Refresh", onClick: load },
               { icon: "⊟", title: "Filter" },
             ].map(({ icon, title, onClick }) => (
-              <button key={title} title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#446BF9", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+              <button key={title} title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#003160", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
                 {icon}
               </button>
             ))}
