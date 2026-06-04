@@ -11,62 +11,89 @@ const MaritechLogo = () => (
   </svg>
 );
 
-export default function DigitollLayout({ children }: { children: React.ReactNode }) {
+// ── Nav structure ─────────────────────────────────────────────────────────────
+const NAV_SECTIONS = [
+  {
+    key: "tms",
+    label: "TMS",
+    icon: "local_shipping",
+    href: "/tms/orders",
+    items: [
+      { href: "/tms/orders", label: "Orders" },
+      { href: "/tms/trips",  label: "Trips" },
+    ],
+  },
+  {
+    key: "customs",
+    label: "Customs",
+    icon: "gavel",
+    href: "/customs",
+    items: [],
+  },
+  {
+    key: "digitoll",
+    label: "Digitoll",
+    icon: "receipt_long",
+    href: "/digitoll",
+    items: [],
+  },
+  {
+    key: "docreader",
+    label: "Document Reader",
+    icon: "description",
+    href: "/digitoll/incoming",
+    items: [
+      { href: "/digitoll/incoming", label: "Incoming" },
+      { href: "/digitoll/settings", label: "Settings" },
+    ],
+  },
+];
+
+const iconStyle = {
+  fontFamily: "Material Symbols Rounded",
+  fontSize: 22,
+  color: "#fff",
+  lineHeight: 1,
+  userSelect: "none" as const,
+  fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24",
+};
+
+export default function ShellLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-
-  const allNavItems = [
-    { href: "/digitoll",          label: "Start" },
-    { href: "/digitoll/incoming", label: "Incoming Documents" },
-    { href: "/digitoll/settings", label: "Settings" },
-  ];
-
-  const [collapsed, setCollapsed] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ tms: true, docreader: true });
 
-  function pageTitle() {
-    if (path === "/digitoll")          return "Start";
-    if (path === "/digitoll/incoming") return "Incoming Documents";
-    if (path === "/digitoll/settings") return "Settings";
-    return "";
+  function toggleSection(key: string) {
+    setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
-  const iconStyle = {
-    fontFamily: "Material Symbols Rounded",
-    fontSize: 22,
-    color: "#fff",
-    lineHeight: 1,
-    userSelect: "none" as const,
-    fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24",
-  };
+  function isActive(href: string) {
+    if (href === "/digitoll") return path === "/digitoll";
+    if (href === "/customs")  return path === "/customs";
+    // För sektioner med sub-items: matcha exakt eller med trailing slash
+    return path === href || path.startsWith(href + "/");
+  }
+
+  function pageTitle() {
+    if (path === "/tms/orders")        return "TMS / Orders";
+    if (path === "/tms/trips")         return "TMS / Trips";
+    if (path === "/customs")           return "Customs";
+    if (path === "/digitoll")          return "Digitoll / Start";
+    if (path === "/digitoll/incoming") return "Document Reader / Incoming";
+    if (path === "/digitoll/settings") return "Document Reader / Settings";
+    return "";
+  }
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "#fff", fontFamily: "'Inter', sans-serif" }}>
 
-      {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <div style={{
-        width: sidebarCollapsed ? 60 : 230,
-        background: "#fff",
-        transition: "width 0.2s ease",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-        borderRight: "1px solid #E4E7EC",
-      }}>
+      {/* ── Sidebar ───────────────────────────────────────────── */}
+      <div style={{ width: sidebarCollapsed ? 60 : 230, background: "#fff", transition: "width 0.2s ease", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid #E4E7EC", overflow: "hidden" }}>
 
         {/* Logo bar */}
-        <div style={{
-          height: 60,
-          padding: "0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: sidebarCollapsed ? "center" : "flex-start",
-          paddingLeft: sidebarCollapsed ? 0 : 16,
-          gap: 10,
-          borderBottom: "1px solid #E4E7EC",
-          flexShrink: 0,
-        }}>
+        <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", paddingLeft: sidebarCollapsed ? 0 : 16, gap: 10, borderBottom: "1px solid #E4E7EC", flexShrink: 0 }}>
           {sidebarCollapsed ? (
-            <div onClick={() => setSidebarCollapsed(false)} style={{ width: 28, height: 28, borderRadius: "50%", background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "background 0.15s" }}
+            <div onClick={() => setSidebarCollapsed(false)} style={{ width: 28, height: 28, borderRadius: "50%", background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
               onMouseEnter={e => (e.currentTarget.style.background = "#E4E7EC")}
               onMouseLeave={e => (e.currentTarget.style.background = "#F2F4F7")}
             >
@@ -74,8 +101,7 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
             </div>
           ) : (
             <>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "background 0.15s" }}
-                onClick={() => setSidebarCollapsed(true)}
+              <div onClick={() => setSidebarCollapsed(true)} style={{ width: 28, height: 28, borderRadius: "50%", background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#E4E7EC")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#F2F4F7")}
               >
@@ -88,68 +114,87 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
           )}
         </div>
 
-        {/* Section header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", height: 37, padding: "0 14px", margin: "0 2px", background: "#DFE5EB", borderRadius: (collapsed || sidebarCollapsed) ? "2px" : "2px 2px 0 0" }}>
-          {sidebarCollapsed ? (
-            <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#003160", lineHeight: 1, userSelect: "none" }}>receipt_long</span>
-          ) : (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#003160", lineHeight: 1, userSelect: "none" }}>receipt_long</span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", color: "#003160", textTransform: "uppercase" }}>Digitoll</span>
+        {/* Nav sections */}
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 2px" }}>
+          {NAV_SECTIONS.map((section, si) => {
+            const sectionCollapsed = collapsedSections[section.key] ?? false;
+            const hasItems = section.items.length > 0;
+            const sectionActive = isActive(section.href) || section.items.some(item => isActive(item.href));
+
+            return (
+              <div key={section.key} style={{ marginBottom: 6 }}>
+                {/* Section header */}
+                <div className={sectionActive ? "" : "nav-section-header"} style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", height: 37, padding: sidebarCollapsed ? "0" : "0 14px", background: sectionActive ? "#DFE5EB" : "transparent", borderRadius: "2px" }}>
+                  {sidebarCollapsed ? (
+                    <Link href={section.href} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", textDecoration: "none" }}>
+                      <span style={{ fontFamily: "Material Icons", fontSize: 16, color: sectionActive ? "#003160" : "#767676", lineHeight: 1, userSelect: "none" }}>{section.icon}</span>
+                    </Link>
+                  ) : (
+                    <>
+                      <Link href={section.href} style={{ display: "flex", alignItems: "center", gap: 7, textDecoration: "none", flex: 1, height: "100%" }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 15, color: sectionActive ? "#003160" : "#767676", lineHeight: 1, userSelect: "none" }}>{section.icon}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", color: sectionActive ? "#003160" : "#767676", textTransform: "uppercase" as const }}>{section.label}</span>
+                      </Link>
+                      {hasItems && (
+                        <span
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); toggleSection(section.key); }}
+                          className="nav-toggle-icon"
+                          style={{ fontFamily: "Material Icons", fontSize: 14, color: "#98A2B3", lineHeight: 1, cursor: "pointer", userSelect: "none", flexShrink: 0, padding: "0 2px", borderRadius: 2 }}
+                        >{collapsedSections[section.key] === false || (!collapsedSections[section.key] && collapsedSections[section.key] !== true) ? "remove" : "add"}</span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Nav items — bara för aktiv sektion */}
+                {hasItems && !sectionCollapsed && !sidebarCollapsed && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {section.items.map((item, idx) => {
+                      const active = isActive(item.href);
+                      const isLast = idx === section.items.length - 1;
+                      return (
+                        <Link key={item.href} href={item.href} style={{ display: "flex", alignItems: "center", height: 37, padding: "0 14px", color: sectionActive ? "#003160" : "#767676", fontWeight: active ? 700 : 400, fontSize: 13, textDecoration: "none", background: sectionActive ? "#DFE5EB" : "transparent", borderRadius: isLast ? "0 0 2px 2px" : "0", transition: "background 0.1s" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sectionActive ? "#CDD6E0" : "#F2F4F7"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = sectionActive ? "#DFE5EB" : "transparent"; }}
+                        >
+                          <span style={{ width: 18, display: "flex", justifyContent: "center", marginRight: 8, flexShrink: 0 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#003160" : "#98A2B3", display: "inline-block" }} />
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Minimized bullets — bara för aktiv sektion */}
+                {hasItems && sidebarCollapsed && sectionActive && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {section.items.map((item, idx) => {
+                      const active = isActive(item.href);
+                      const isLast = idx === section.items.length - 1;
+                      return (
+                        <Link key={item.href} href={item.href} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 37, textDecoration: "none", background: "#DFE5EB", borderRadius: isLast ? "0 0 2px 2px" : "0", transition: "background 0.1s" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#CDD6E0"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#DFE5EB"; }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#003160" : "#98A2B3", display: "inline-block" }} />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <span onClick={() => setCollapsed(c => !c)} style={{ fontFamily: "Material Icons", fontSize: 14, color: "#98A2B3", lineHeight: 1, cursor: "pointer", userSelect: "none" }}>{collapsed ? "add" : "remove"}</span>
-            </>
-          )}
+            );
+          })}
         </div>
-
-        {/* Nav items — expanded */}
-        {!collapsed && !sidebarCollapsed && (
-          <div style={{ padding: "0 2px", marginTop: 1, display: "flex", flexDirection: "column", gap: 1 }}>
-            {allNavItems.map((item, idx) => {
-              const active = item.href === "/digitoll" ? path === "/digitoll" : path.startsWith(item.href);
-              const isLast = idx === allNavItems.length - 1;
-              return (
-                <Link key={item.href} href={item.href} style={{ display: "flex", alignItems: "center", height: 37, padding: "0 14px", gap: 0, color: "#003160", fontWeight: active ? 700 : 400, fontSize: 13, textDecoration: "none", background: "#DFE5EB", borderRadius: isLast ? "0 0 2px 2px" : "0", transition: "background 0.1s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#CDD6E0"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#DFE5EB"; }}
-                >
-                  <span style={{ width: 18, display: "flex", justifyContent: "center", marginRight: 8, flexShrink: 0 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#003160" : "#98A2B3", display: "inline-block", flexShrink: 0 }} />
-                  </span>
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Nav items — minimized (bullets only) */}
-        {sidebarCollapsed && (
-          <div style={{ padding: "0 2px", marginTop: 1, display: "flex", flexDirection: "column", gap: 1 }}>
-            {allNavItems.map((item, idx) => {
-              const active = item.href === "/digitoll" ? path === "/digitoll" : path.startsWith(item.href);
-              const isLast = idx === allNavItems.length - 1;
-              return (
-                <Link key={item.href} href={item.href} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 37, textDecoration: "none", background: "#DFE5EB", borderRadius: isLast ? "0 0 2px 2px" : "0", transition: "background 0.1s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#CDD6E0"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#DFE5EB"; }}
-                >
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#003160" : "#98A2B3", display: "inline-block", flexShrink: 0 }} />
-                </Link>
-              );
-            })}
-          </div>
-        )}
       </div>
 
-      {/* ── Main area ────────────────────────────────────────────── */}
+      {/* ── Main area ──────────────────────────────────────────── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-        {/* Topbar — 60px */}
+        {/* Topbar */}
         <div style={{ background: "#003160", height: 60, display: "flex", alignItems: "center", padding: "0 20px", gap: 12, flexShrink: 0 }}>
-
-          {/* Account dropdown */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", letterSpacing: "0.04em", textTransform: "uppercase" }}>Account Name</div>
@@ -157,18 +202,9 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
             </div>
             <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "rgba(255,255,255,0.6)", lineHeight: 1, userSelect: "none" }}>arrow_drop_down</span>
           </div>
-
-          {/* Separator */}
           <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)", margin: "0 4px" }} />
-
-          {/* Page title */}
-          <div style={{ color: "#fff", fontSize: 13, fontWeight: 500, flex: 1, textAlign: "center" }}>
-            Digitoll / {pageTitle()}
-          </div>
-
-          {/* Right icons */}
+          <div style={{ color: "#fff", fontSize: 13, fontWeight: 500, flex: 1, textAlign: "center" }}>{pageTitle()}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: "auto" }}>
-            {/* Add */}
             <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2, transition: "background 0.15s" }}
               onClick={() => window.dispatchEvent(new CustomEvent("digitoll:open-create-menu"))}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
@@ -176,9 +212,7 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
             >
               <span style={iconStyle}>add</span>
             </div>
-            {/* Divider */}
             <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.2)", margin: "0 6px" }} />
-            {/* AI */}
             <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2, transition: "background 0.15s" }}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
@@ -187,7 +221,6 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
                 <span style={{ fontFamily: "Material Symbols Rounded", fontSize: 22, lineHeight: 1, userSelect: "none", fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24" }}>auto_awesome</span>
               </span>
             </div>
-            {/* history, settings, apps */}
             {(["history", "settings", "apps"] as const).map(icon => (
               <div key={icon} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2, transition: "background 0.15s" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
@@ -196,11 +229,14 @@ export default function DigitollLayout({ children }: { children: React.ReactNode
                 <span style={iconStyle}>{icon}</span>
               </div>
             ))}
-
           </div>
         </div>
 
-        {/* Page content */}
+        <style>{`
+        .nav-section-header:hover { background: #F2F4F7 !important; border-radius: 2px; }
+        .nav-toggle-icon:hover { color: #003160 !important; }
+      `}</style>
+      {/* Page content */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
           {children}
         </div>
