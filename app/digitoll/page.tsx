@@ -128,7 +128,7 @@ const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "cente
 const btnSec: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 2, background: "#fff", color: "#344054", fontSize: 12.5, fontWeight: 500, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit" };
 const btnGreen: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 0", borderRadius: 2, background: "#17B26A", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", width: "100%" };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 13, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
-const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 2, border: "none", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
+const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 8, padding: "0 16px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
 function FL({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 5, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{children}{required && <span style={{ color: "#D92D20" }}> *</span>}</label>;
@@ -850,6 +850,8 @@ export default function DigitollStart() {
           </div>
         </div>
 
+        {/* Divider */}
+        <div style={{ height: 1, background: "#E4E7EC", margin: "0 -20px 10px" }} />
         {/* Search row — full width, under filter */}
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff" }}>
@@ -881,7 +883,7 @@ export default function DigitollStart() {
             <thead>
               <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
                 {([
-                  ["", null], ["State", "state"], ["ID", "id"], ["SH", "sh"],
+                  ["Type", "kind"], ["State", "state"], ["ID", "id"], ["SH", "sh"],
                   ["Date", "date"], ["Actor", "actor"], ["Responsible", "resp"],
                   ["Carrier", "carrier"], ["Border", "border"], ["Transport", "transport"],
                   ["Status", "status"], ["Next step", null], ["Declaration", "decl"], ["", null]
@@ -893,8 +895,38 @@ export default function DigitollStart() {
               </tr>
             </thead>
             <tbody>
-              <TableSection rows={trRows} heading="Transports" />
-              <TableSection rows={shRows} heading="Shipments" />
+              {sortedRows.map(row => {
+                const d = row.data;
+                const isTransport = row.kind === "transport";
+                const next = nextAction(row);
+                const isActionable = !["View"].includes(next);
+                const transportDisplay = row.kind === "shipment"
+                  ? (d as Shipment).own_transport ? "Own transport" : (d as Shipment).transports ? `Incl. ${(d as Shipment).transports!.reference}` : "Unlinked"
+                  : (d as Transport).transport_mode ?? "—";
+                return (
+                  <tr key={d.id} onClick={() => openRow(row)} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 2, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
+                    <td style={{ padding: "9px 8px", fontWeight: 600, color: "#175CD3", fontSize: 12.5 }}>{d.state_id ?? "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5 }}>{d.reference}</td>
+                    <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{isTransport ? (d as Transport).shipments?.length ?? 0 : "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#667085", fontSize: 11.5, whiteSpace: "nowrap" as const }}>{(d as Transport).ata ? "ATA " : "ETA "}{fmtDate((d as Transport).ata ?? d.eta)}</td>
+                    <td style={{ padding: "9px 8px", color: "#344054", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{d.actor ?? "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{d.responsible ?? "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{d.carrier ?? "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#344054", fontSize: 12.5 }}>{d.border_crossing ?? "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5, whiteSpace: "nowrap" as const }}>{transportDisplay}</td>
+                    <td style={{ padding: "9px 8px" }}><StatusPill status={d.status} /></td>
+                    <td style={{ padding: "9px 8px" }}>
+                      {isActionable
+                        ? <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ ...btnPri, padding: "4px 10px", fontSize: 11.5, whiteSpace: "nowrap" as const, background: "#446BF9" }}>{next}</button>
+                        : <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 2, background: "transparent", color: "#446BF9", fontSize: 11.5, fontWeight: 500, border: "1px solid #446BF9", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>View</button>}
+                    </td>
+                    <td style={{ padding: "9px 8px" }}><DeclBadge status={d.declaration_status} /></td>
+                    <td style={{ padding: "9px 4px" }}><button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#98A2B3", fontSize: 18 }}>⋯</button></td>
+                  </tr>
+                );
+              })}
               {filteredRows.length === 0 && <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "#98A2B3", fontSize: 13 }}>No records found</td></tr>}
             </tbody>
           </table>
