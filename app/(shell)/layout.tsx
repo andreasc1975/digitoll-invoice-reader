@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const MaritechLogo = () => (
@@ -62,6 +62,16 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   const path = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ tms: true, docreader: true });
+
+  // Auto-expandera aktiv sektion när path ändras
+  useEffect(() => {
+    NAV_SECTIONS.forEach(section => {
+      const active = path === section.href || section.items.some(item => path === item.href || path.startsWith(item.href + "/"));
+      if (active && section.items.length > 0) {
+        setCollapsedSections(prev => ({ ...prev, [section.key]: false }));
+      }
+    });
+  }, [path]);
 
   function toggleSection(key: string) {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
