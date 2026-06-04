@@ -148,7 +148,7 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
 
                 {/* Nav items — bara för aktiv sektion */}
                 {hasItems && !sectionCollapsed && !sidebarCollapsed && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 1 }}>
                     {section.items.map((item, idx) => {
                       const active = isActive(item.href);
                       const isLast = idx === section.items.length - 1;
@@ -169,7 +169,7 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
 
                 {/* Minimized bullets — bara för aktiv sektion */}
                 {hasItems && sidebarCollapsed && sectionActive && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 1 }}>
                     {section.items.map((item, idx) => {
                       const active = isActive(item.href);
                       const isLast = idx === section.items.length - 1;
