@@ -146,7 +146,7 @@ function SourceBadge({ source }: { source: string | null }) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const btnPri: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 2, background: "#003160", color: "#fff", fontSize: 12.5, fontWeight: 500, border: "none", cursor: "pointer", fontFamily: "inherit" };
 const btnSec: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 2, background: "#fff", color: "#344054", fontSize: 12.5, fontWeight: 500, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit" };
-const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 13px", borderRadius: 2, border: `1px solid ${active ? "#003160" : "#D0D5DD"}`, background: active ? "#003160" : "#fff", color: active ? "#fff" : "#344054", fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".04em", cursor: "pointer", fontFamily: "inherit" });
+const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 const inp: React.CSSProperties = { width: "100%", padding: "7px 10px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 12.5, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -419,27 +419,29 @@ export default function IncomingDocuments() {
         <div style={{ fontSize: 11, color: "#98A2B3", marginTop: 3 }}>PDF, PNG, JPG — extraction starts immediately</div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ padding: "14px 20px 0", borderBottom: "1px solid #E4E7EC" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" as const }}>
         {([ ["all","All",invoices.length], ["review","Needs review",reviewCount], ["ready","Ready",readyCount], ["processed","Processed",processedCount] ] as [string,string,number][]).map(([key,label,count]) => (
           <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
             {label}
             {filter !== key && <span style={{ background: "#003160", color: "#fff", borderRadius: 2, padding: "0 6px", fontSize: 10, fontWeight: 700 }}>{count}</span>}
           </button>
         ))}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "1px solid #D0D5DD", borderRadius: 2, background: "#fff", width: 220 }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", minWidth: 220 }}>
           <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3" }}>search</span>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents..." style={{ border: "none", outline: "none", fontSize: 12, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
         </div>
       </div>
 
-      <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
+      </div>
+      <div style={{ background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" as const }}>
           <colgroup>
             <col style={{ width: "28%" }} /><col style={{ width: "11%" }} /><col style={{ width: "7%" }} />
             <col style={{ width: "11%" }} /><col style={{ width: "13%" }} /><col style={{ width: "11%" }} />
             <col style={{ width: "10%" }} /><col style={{ width: "7%" }} /><col style={{ width: 36 }} />
           </colgroup>
-          <thead style={{ background: "#F9FAFB", borderBottom: "1px solid #E4E7EC" }}>
+          <thead style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
             <tr>{["Document","Source","Size","Uploaded","Status","Completion","Action",""].map((h,i) => (
               <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
             ))}</tr>
@@ -448,12 +450,21 @@ export default function IncomingDocuments() {
             {filtered.map(inv => {
               const st = docStatus(inv);
               return (
-                <tr key={inv.id} onClick={() => openExisting(inv)} style={{ borderBottom: "1px solid #F2F4F7", cursor: "pointer" }}
+                <tr key={inv.id} onClick={() => openExisting(inv)} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                   <td style={{ padding: "10px 12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#344054", fontSize: 12.5 }}>
-                      <span style={{ color: inv.file_name.endsWith(".pdf") ? "#D92D20" : "#667085", fontSize: 17 }}>📄</span>
+                      <span style={{
+                        fontFamily: "Material Symbols Rounded",
+                        fontSize: 18,
+                        lineHeight: 1,
+                        userSelect: "none",
+                        fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24",
+                        color: (inv.file_name.endsWith(".pdf") || inv.file_name.endsWith(".doc") || inv.file_name.endsWith(".docx")) ? "#D0021B" : "#003160",
+                      }}>
+                        {(inv.file_name.endsWith(".pdf") || inv.file_name.endsWith(".doc") || inv.file_name.endsWith(".docx")) ? "docs" : "code_blocks"}
+                      </span>
                       {inv.file_name}
                     </span>
                   </td>

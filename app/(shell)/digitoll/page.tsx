@@ -16,6 +16,8 @@ interface Transport {
   state_id: string | null;
   declaration_status: string;
   shipments?: Shipment[];
+  source?: string;
+  tms_trip_ref?: string | null;
   created_at: string;
 }
 
@@ -33,6 +35,8 @@ interface Shipment {
   declaration_status: string;
   own_transport: boolean;
   transports?: { reference: string } | null;
+  source?: string;
+  tms_order_ref?: string | null;
   created_at: string;
 }
 
@@ -112,6 +116,22 @@ function StatusPill({ status, tooltip }: { status: string; tooltip?: string }) {
     <span title={tooltip ?? cfg.tip} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 2, fontSize: 11.5, fontWeight: 500, background: c.pill, color: c.text, whiteSpace: "nowrap", cursor: "default" }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot, flexShrink: 0 }} />
       {cfg.label}
+    </span>
+  );
+}
+
+
+function SourceBadge({ source }: { source?: string }) {
+  const cfg: Record<string, { bg: string; color: string }> = {
+    tms:    { bg: "#EFF8FF", color: "#175CD3" },
+    cms:    { bg: "#ECFDF3", color: "#027A48" },
+    manual: { bg: "#F2F4F7", color: "#667085" },
+  };
+  const key = (source ?? "manual").toLowerCase();
+  const c = cfg[key] ?? cfg.manual;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 7px", borderRadius: 2, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const, background: c.bg, color: c.color }}>
+      {key}
     </span>
   );
 }
@@ -498,6 +518,8 @@ export default function DigitollStart() {
   const [active, setActive]         = useState<ActiveModal>(null);
   const [saving, setSaving]         = useState(false);
   const [sendDone, setSendDone]     = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu]   = useState<{ x: number; y: number; id: string } | null>(null);
   const [sortCol, setSortCol]       = useState<string | null>(null);
   const [sortDir, setSortDir]       = useState<"asc" | "desc">("asc");
 
@@ -560,7 +582,50 @@ export default function DigitollStart() {
     return () => window.removeEventListener("digitoll:open-create-menu", handleTopbarCreate);
   }, []);
 
+  // Synka topbar delete-knappens opacity med selectedRows
+  useEffect(() => {
+    const btn = document.getElementById("topbar-delete-btn");
+    if (btn) btn.style.opacity = selectedRows.size > 0 ? "1" : "0.5";
+  }, [selectedRows]);
+
+  // Lyssna på delete-event från topbaren
+  useEffect(() => {
+    function handleTopbarDelete() { deleteSelected(); }
+    window.addEventListener("digitoll:delete-selected", handleTopbarDelete);
+    return () => window.removeEventListener("digitoll:delete-selected", handleTopbarDelete);
+  }, [selectedRows]);
+
   function close() { setActive(null); setSendDone(false); }
+
+  function toggleRow(id: string) {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    await Promise.all([...selectedRows].map(async id => {
+      const tr = transports.find(t => t.id === id);
+      const sh = shipments.find(s => s.id === id);
+      if (tr) await fetch(`/api/transports/${id}`, { method: "DELETE" });
+      if (sh) await fetch(`/api/shipments/${id}`, { method: "DELETE" });
+    }));
+    setSelectedRows(new Set());
+    load();
+  }
+
+  async function deleteRow(id: string) {
+    const tr = transports.find(t => t.id === id);
+    const sh = shipments.find(s => s.id === id);
+    if (tr) await fetch(`/api/transports/${id}`, { method: "DELETE" });
+    if (sh) await fetch(`/api/shipments/${id}`, { method: "DELETE" });
+    setSelectedRows(prev => { const next = new Set(prev); next.delete(id); return next; });
+    setContextMenu(null);
+    load();
+  }
 
   // ── Open handlers ─────────────────────────────────────────────────────────
   function openNewTransport() {
@@ -788,6 +853,28 @@ export default function DigitollStart() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        .row-checkbox { opacity: 0; transition: opacity 0.1s; }
+        .row-checkbox.visible, .row-checkbox.checked { opacity: 1 !important; }
+        tr:hover .row-checkbox { opacity: 1; }
+        .select-all-th:hover .row-checkbox { opacity: 1; }
+      `}</style>
+      {/* Context menu */}
+      {contextMenu && (
+        <div onClick={() => setContextMenu(null)} style={{ position: "fixed", inset: 0, zIndex: 900 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "fixed", top: contextMenu.y, left: contextMenu.x, background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 901, minWidth: 160, overflow: "hidden" }}>
+            <div
+              onClick={() => deleteRow(contextMenu.id)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", cursor: "pointer", fontSize: 13, color: "#B42318", fontFamily: "inherit" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#FEF3F2")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={{ fontFamily: "Material Icons", fontSize: 16, lineHeight: 1 }}>delete_forever</span>
+              Delete row
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Context menu (triggas från topbar + knappen) ───────────────────── */}
       {showCreateMenu && (
@@ -836,6 +923,14 @@ export default function DigitollStart() {
 
           {/* Right icons */}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            <button
+              onClick={deleteSelected}
+              disabled={selectedRows.size === 0}
+              title={selectedRows.size > 0 ? `Delete ${selectedRows.size} selected` : "Select rows to delete"}
+              style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: selectedRows.size > 0 ? "pointer" : "default", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", opacity: selectedRows.size > 0 ? 1 : 0.5 }}
+            >
+              <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#003160", lineHeight: 1, userSelect: "none" }}>delete_forever</span>
+            </button>
             {[
               { icon: "≡", title: "Group" },
               { icon: "↺", title: "Refresh", onClick: load },
@@ -868,23 +963,50 @@ export default function DigitollStart() {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ background: "#fff" }}>
+      <div style={{ flex: 1, overflow: "auto" }}>
+        <div style={{ background: "#fff", minWidth: 1400 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: 12.5 }}>
             <colgroup>
-              <col style={{ width: 38 }} /><col style={{ width: 60 }} /><col style={{ width: 75 }} />
-              <col style={{ width: 40 }} /><col style={{ width: 140 }} /><col style={{ width: 110 }} />
-              <col style={{ width: 100 }} /><col style={{ width: 75 }} /><col style={{ width: 85 }} />
-              <col style={{ width: 95 }} /><col style={{ width: 175 }} /><col style={{ width: 115 }} />
-              <col style={{ width: 90 }} /><col style={{ width: 36 }} />
+              <col style={{ width: 36 }} />   {/* checkbox */}
+              <col style={{ width: 42 }} />   {/* type TR/SH */}
+              <col style={{ width: 55 }} />   {/* state */}
+              <col style={{ width: 90 }} />   {/* id */}
+              <col style={{ width: 36 }} />   {/* sh */}
+              <col style={{ width: 54 }} />   {/* source */}
+              <col style={{ width: 130 }} />  {/* date */}
+              <col style={{ width: 120 }} />  {/* actor */}
+              <col style={{ width: 100 }} />  {/* responsible */}
+              <col style={{ width: 80 }} />   {/* carrier */}
+              <col style={{ width: 80 }} />   {/* border */}
+              <col style={{ width: 80 }} />   {/* transport */}
+              <col style={{ width: 140 }} />  {/* status */}
+              <col style={{ width: 90 }} />   {/* tms order */}
+              <col style={{ width: 90 }} />   {/* tms trip */}
+              <col style={{ width: 155 }} />  {/* next step */}
+              <col style={{ width: 90 }} />   {/* declaration */}
+              <col style={{ width: 36 }} />   {/* actions */}
             </colgroup>
             <thead>
               <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
+                {/* Select-all checkbox i header */}
+                <th className="select-all-th" style={{ width: 36, padding: "0 8px", textAlign: "center" as const }} onClick={() => {
+                  if (selectedRows.size === sortedRows.length && sortedRows.length > 0) {
+                    setSelectedRows(new Set());
+                  } else {
+                    setSelectedRows(new Set(sortedRows.map(r => r.data.id)));
+                  }
+                }}>
+                  <div className={`row-checkbox${selectedRows.size > 0 ? " checked" : ""}`} style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${selectedRows.size > 0 ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.size === sortedRows.length && sortedRows.length > 0 ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", cursor: "pointer", transition: "all 0.1s" }}>
+                    {selectedRows.size > 0 && selectedRows.size === sortedRows.length && <span style={{ color: "#fff", fontSize: 11, lineHeight: 1, fontWeight: 700 }}>✓</span>}
+                    {selectedRows.size > 0 && selectedRows.size < sortedRows.length && <span style={{ width: 8, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
+                  </div>
+                </th>
                 {([
-                  ["Type", "kind"], ["State", "state"], ["ID", "id"], ["SH", "sh"],
+                  ["Type", "kind"], ["State", "state"], ["ID", "id"], ["SH", "sh"], ["Source", null],
                   ["Date", "date"], ["Actor", "actor"], ["Responsible", "resp"],
                   ["Carrier", "carrier"], ["Border", "border"], ["Transport", "transport"],
-                  ["Status", "status"], ["Next step", null], ["Declaration", "decl"], ["", null]
+                  ["Status", "status"], ["TMS Order", null], ["TMS Trip", null],
+                  ["Next step", null], ["Declaration", "decl"], ["", null]
                 ] as [string, string | null][]).map(([h, col], i) => (
                   <th key={i} onClick={col ? () => handleSort(col) : undefined} style={{ padding: "9px 8px", textAlign: "left", fontSize: 11, fontWeight: 600, color: col ? "#003160" : "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap", overflow: "hidden", cursor: col ? "pointer" : "default", userSelect: "none" }}>
                     {h}{col && sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
@@ -902,9 +1024,20 @@ export default function DigitollStart() {
                   ? (d as Shipment).own_transport ? "Own transport" : (d as Shipment).transports ? `Incl. ${(d as Shipment).transports!.reference}` : "Unlinked"
                   : (d as Transport).transport_mode ?? "—";
                 return (
-                  <tr key={d.id} onClick={() => openRow(row)} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                  <tr key={d.id}
+                    onClick={() => openRow(row)}
+                    onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: d.id }); }}
+                    style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer", background: selectedRows.has(d.id) ? "#EDF0F3" : "transparent" }}
+                    onMouseEnter={e => { if (!selectedRows.has(d.id)) e.currentTarget.style.background = "#F9FAFB"; else e.currentTarget.style.background = "#EDF0F3"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = selectedRows.has(d.id) ? "#EDF0F3" : "transparent"; }}
+                  >
+                    <td style={{ padding: "0 8px", width: 36, textAlign: "center" as const }} onClick={e => { e.stopPropagation(); toggleRow(d.id); }}>
+                      <div className={`row-checkbox${selectedRows.has(d.id) ? " checked" : ""}`} style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${selectedRows.has(d.id) ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.has(d.id) ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", transition: "all 0.1s" }}>
+                        {selectedRows.has(d.id) && <span style={{ color: "#fff", fontSize: 11, lineHeight: 1, fontWeight: 700 }}>✓</span>}
+                      </div>
+                    </td>
                     <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 2, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
+                    <td style={{ padding: "9px 8px" }}><SourceBadge source={d.source} /></td>
                     <td style={{ padding: "9px 8px", fontWeight: 600, color: "#175CD3", fontSize: 12.5 }}>{d.state_id ?? "—"}</td>
                     <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5 }}>{d.reference}</td>
                     <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{isTransport ? (d as Transport).shipments?.length ?? 0 : "—"}</td>
@@ -915,6 +1048,8 @@ export default function DigitollStart() {
                     <td style={{ padding: "9px 8px", color: "#344054", fontSize: 12.5 }}>{d.border_crossing ?? "—"}</td>
                     <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5, whiteSpace: "nowrap" as const }}>{transportDisplay}</td>
                     <td style={{ padding: "9px 8px" }}><StatusPill status={d.status} /></td>
+                    <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12 }}>{isTransport ? "—" : ((d as Shipment).tms_order_ref ?? "—")}</td>
+                    <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12 }}>{isTransport ? ((d as Transport).tms_trip_ref ?? "—") : "—"}</td>
                     <td style={{ padding: "9px 8px" }}>
                       {isActionable
                         ? <button onClick={e => { e.stopPropagation(); openRow(row); }} style={{ ...btnPri, padding: "4px 10px", fontSize: 11.5, whiteSpace: "nowrap" as const, background: "#446BF9" }}>{next}</button>

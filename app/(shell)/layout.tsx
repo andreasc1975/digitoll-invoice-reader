@@ -222,6 +222,15 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
             >
               <span style={iconStyle}>add</span>
             </div>
+            <div
+              id="topbar-delete-btn"
+              style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2, transition: "all 0.15s", opacity: 0.5 }}
+              onClick={() => window.dispatchEvent(new CustomEvent("digitoll:delete-selected"))}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={iconStyle}>delete_forever</span>
+            </div>
             <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.2)", margin: "0 6px" }} />
             <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2, transition: "background 0.15s" }}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
