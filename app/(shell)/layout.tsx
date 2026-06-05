@@ -207,8 +207,8 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
         <div style={{ background: "#003160", height: 60, display: "flex", alignItems: "center", padding: "0 20px", gap: 12, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", letterSpacing: "0.04em", textTransform: "uppercase" }}>Account Name</div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Domain Name</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#fff", letterSpacing: "0.04em", textTransform: "uppercase" }}>Account Name</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Domain Name</div>
             </div>
             <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "rgba(255,255,255,0.6)", lineHeight: 1, userSelect: "none" }}>arrow_drop_down</span>
           </div>
