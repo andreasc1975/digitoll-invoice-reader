@@ -967,24 +967,24 @@ export default function DigitollStart() {
         <div style={{ background: "#fff", minWidth: 1400 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: 12.5 }}>
             <colgroup>
-              <col style={{ width: 36 }} />   {/* checkbox */}
-              <col style={{ width: 42 }} />   {/* type TR/SH */}
-              <col style={{ width: 55 }} />   {/* state */}
-              <col style={{ width: 90 }} />   {/* id */}
-              <col style={{ width: 36 }} />   {/* sh */}
-              <col style={{ width: 54 }} />   {/* source */}
-              <col style={{ width: 130 }} />  {/* date */}
-              <col style={{ width: 120 }} />  {/* actor */}
-              <col style={{ width: 100 }} />  {/* responsible */}
-              <col style={{ width: 80 }} />   {/* carrier */}
-              <col style={{ width: 80 }} />   {/* border */}
-              <col style={{ width: 80 }} />   {/* transport */}
-              <col style={{ width: 140 }} />  {/* status */}
-              <col style={{ width: 90 }} />   {/* tms order */}
-              <col style={{ width: 90 }} />   {/* tms trip */}
-              <col style={{ width: 155 }} />  {/* next step */}
-              <col style={{ width: 90 }} />   {/* declaration */}
-              <col style={{ width: 36 }} />   {/* actions */}
+              <col style={{ width: 36 }} />
+              <col style={{ width: 42 }} />
+              <col style={{ width: 55 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 36 }} />
+              <col style={{ width: 54 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 155 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 36 }} />
             </colgroup>
             <thead>
               <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>

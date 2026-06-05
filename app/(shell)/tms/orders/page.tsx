@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Order {
   id: string;
@@ -31,31 +31,45 @@ interface Trip {
   digitoll_id: string | null;
 }
 
-const MOCK_TRIPS: Trip[] = [
-  { id: "t1", reference: "TR-6749", from: "Gothenburg", to: "Oslo", departure: "2026-06-05 08:00", arrival: "2026-06-06 14:00", digitoll_id: null },
-  { id: "t2", reference: "TR-6750", from: "Stockholm", to: "Bergen", departure: "2026-06-05 10:00", arrival: "2026-06-06 18:00", digitoll_id: null },
-  { id: "t3", reference: "TR-6751", from: "Malmö", to: "Trondheim", departure: "2026-06-06 06:00", arrival: "2026-06-07 12:00", digitoll_id: "TR-DIG-6751" },
-  { id: "t4", reference: "TR-6752", from: "Copenhagen", to: "Stavanger", departure: "2026-06-07 09:00", arrival: "2026-06-08 16:00", digitoll_id: null },
-  { id: "t5", reference: "TR-6753", from: "Helsingborg", to: "Kristiansand", departure: "2026-06-08 07:00", arrival: "2026-06-09 13:00", digitoll_id: null },
-];
 
-const MOCK_ORDERS: Order[] = [
-  { id: "1", reference: "ORD-10421", tags: "Express", service_code: "FTL", consignor: "Exporter Sv X AB", consignee: "Company X AS", departure: "2026-06-05", arrival: "2026-06-06", customs_status: "Cleared", gross_weight: 1240, packages: 12, planning_status: "Confirmed", departure_status: "On time", communication_status: "OK", trip_ids: ["t1"], digitoll_id: null, cms_id: null },
-  { id: "2", reference: "ORD-10422", tags: "", service_code: "LTL", consignor: "Exporter Sv Y AB", consignee: "Company Y AS", departure: "2026-06-05", arrival: "2026-06-07", customs_status: "Pending", gross_weight: 580, packages: 6, planning_status: "Confirmed", departure_status: "On time", communication_status: "OK", trip_ids: [], digitoll_id: null, cms_id: null },
-  { id: "3", reference: "ORD-10423", tags: "Priority", service_code: "FTL", consignor: "Exporter Sv Z AB", consignee: "Company Z AS", departure: "2026-06-06", arrival: "2026-06-07", customs_status: "Cleared", gross_weight: 2100, packages: 20, planning_status: "Confirmed", departure_status: "Delayed", communication_status: "Warning", trip_ids: ["t3"], digitoll_id: "SH-DIG-10423", cms_id: "CMS-10423" },
-  { id: "4", reference: "ORD-10424", tags: "", service_code: "LTL", consignor: "Nordic Freight AS", consignee: "Baltic Lines AS", departure: "2026-06-07", arrival: "2026-06-09", customs_status: "Cleared", gross_weight: 890, packages: 8, planning_status: "Confirmed", departure_status: "On time", communication_status: "OK", trip_ids: ["t1", "t2"], digitoll_id: null, cms_id: null },
-  { id: "5", reference: "ORD-10425", tags: "Express", service_code: "Air", consignor: "EuroFreight AB", consignee: "ScanTrans Norge AS", departure: "2026-06-07", arrival: "2026-06-08", customs_status: "Cleared", gross_weight: 340, packages: 3, planning_status: "Confirmed", departure_status: "On time", communication_status: "OK", trip_ids: [], digitoll_id: null, cms_id: null },
-];
+
+
 
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
 export default function TMSOrders() {
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
-  const [trips] = useState<Trip[]>(MOCK_TRIPS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/tms/orders");
+    if (res.ok) setOrders(await res.json());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  const [trips, setTrips] = useState<Trip[]>([]);
+
+  const loadTrips = useCallback(async () => {
+    const res = await fetch("/api/tms/trips");
+    if (res.ok) setTrips(await res.json());
+  }, []);
+
+  useEffect(() => { loadTrips(); }, [loadTrips]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [linkModal, setLinkModal] = useState<{ orderId: string } | null>(null);
+  const [createModal, setCreateModal] = useState(false);
+  const [createCount, setCreateCount] = useState(1);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleCreate() { setCreateModal(true); }
+    window.addEventListener("digitoll:open-create-menu", handleCreate);
+    return () => window.removeEventListener("digitoll:open-create-menu", handleCreate);
+  }, []);
 
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
@@ -82,17 +96,90 @@ export default function TMSOrders() {
     digitoll: orders.filter(o => !!o.digitoll_id).length,
   };
 
-  function createCms(order: Order) {
+  async function createCms(order: Order) {
     const cmsId = `CMS-${order.reference.replace("ORD-", "")}`;
     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, cms_id: cmsId } : o));
+    await fetch(`/api/tms/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cms_id: cmsId }),
+    });
   }
 
-  function toggleTripLink(orderId: string, tripId: string) {
-    setOrders(prev => prev.map(o => {
-      if (o.id !== orderId) return o;
-      const already = o.trip_ids.includes(tripId);
-      return { ...o, trip_ids: already ? o.trip_ids.filter(t => t !== tripId) : [...o.trip_ids, tripId] };
-    }));
+  const CONSIGNORS = ["Exporter Sv X AB", "Exporter Sv Y AB", "Nordic Freight AS", "EuroFreight AB", "ScanTrans AB", "Baltic Cargo AB"];
+  const CONSIGNEES = ["Company X AS", "Company Y AS", "Baltic Lines AS", "ScanTrans Norge AS", "Nordic Import AS", "Oslo Freight AS"];
+  const SERVICES   = ["FTL", "LTL", "Air", "Rail"];
+  const STATUSES   = ["On time", "On time", "On time", "Delayed"];
+  const CUSTOMS    = ["Cleared", "Cleared", "Cleared", "Pending"];
+  const TAGS       = ["", "", "Express", "Priority", ""];
+
+  function generateOrder(): Order {
+    const id = `gen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const depDate = new Date(Date.now() + Math.random() * 14 * 86400000);
+    const arrDate = new Date(depDate.getTime() + (1 + Math.random() * 2) * 86400000);
+    const num = Math.floor(10426 + Math.random() * 1000);
+    return {
+      id,
+      reference: `ORD-${num}`,
+      tags: TAGS[Math.floor(Math.random() * TAGS.length)],
+      service_code: SERVICES[Math.floor(Math.random() * SERVICES.length)],
+      consignor: CONSIGNORS[Math.floor(Math.random() * CONSIGNORS.length)],
+      consignee: CONSIGNEES[Math.floor(Math.random() * CONSIGNEES.length)],
+      departure: depDate.toISOString().slice(0, 10),
+      arrival: arrDate.toISOString().slice(0, 10),
+      customs_status: CUSTOMS[Math.floor(Math.random() * CUSTOMS.length)],
+      gross_weight: Math.floor(200 + Math.random() * 3000),
+      packages: Math.floor(1 + Math.random() * 30),
+      planning_status: "Confirmed",
+      departure_status: STATUSES[Math.floor(Math.random() * STATUSES.length)],
+      communication_status: "OK",
+      trip_ids: [],
+      digitoll_id: null,
+      cms_id: null,
+    };
+  }
+
+  async function createOrders() {
+    const newOrders = Array.from({ length: createCount }, generateOrder);
+    await Promise.all(newOrders.map(o =>
+      fetch("/api/tms/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(o),
+      })
+    ));
+    setCreateModal(false);
+    setCreateCount(1);
+    load();
+  }
+
+  function toggleRow(id: string) {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    await Promise.all([...selectedRows].map(id =>
+      fetch(`/api/tms/orders/${id}`, { method: "DELETE" })
+    ));
+    setSelectedRows(new Set());
+    load();
+  }
+
+  async function toggleTripLink(orderId: string, tripId: string) {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const already = order.trip_ids.includes(tripId);
+    const newTripIds = already ? order.trip_ids.filter(t => t !== tripId) : [...order.trip_ids, tripId];
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, trip_ids: newTripIds } : o));
+    await fetch(`/api/tms/orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trip_ids: newTripIds }),
+    });
   }
 
   const statusColor = (s: string) => s === "Cleared" ? { bg: "#ECFDF3", color: "#027A48" } : s === "Pending" ? { bg: "#FFFAEB", color: "#B54708" } : { bg: "#F2F4F7", color: "#667085" };
@@ -102,11 +189,41 @@ export default function TMSOrders() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        .order-checkbox { opacity: 0; transition: opacity 0.1s; }
+        .order-checkbox.checked { opacity: 1 !important; }
+        tr:hover .order-checkbox { opacity: 1; }
+        .select-all-th:hover .order-checkbox { opacity: 1; }
+      `}</style>
+
+      {/* Create modal */}
+      {createModal && (
+        <div onClick={() => setCreateModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 360, overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>Create Orders</div>
+              <button onClick={() => setCreateModal(false)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            <div style={{ padding: "20px" }}>
+              <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Number of orders to create</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button onClick={() => setCreateCount(c => Math.max(1, c - 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>−</button>
+                <span style={{ fontSize: 20, fontWeight: 700, color: "#101828", minWidth: 32, textAlign: "center" as const }}>{createCount}</span>
+                <button onClick={() => setCreateCount(c => Math.min(50, c + 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>+</button>
+              </div>
+            </div>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => setCreateModal(false)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
+              <button onClick={createOrders} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create {createCount} order{createCount !== 1 ? "s" : ""}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Link modal */}
       {linkModal && linkingOrder && (
         <div onClick={() => setLinkModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 520, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase", letterSpacing: ".05em" }}>Link to Trip</div>
@@ -172,9 +289,27 @@ export default function TMSOrders() {
               <span style={{ background: filter === key ? "rgba(255,255,255,0.25)" : "#003160", color: "#fff", borderRadius: 2, padding: "0 6px", fontSize: 10, fontWeight: 700 }}>{count}</span>
             </button>
           ))}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", minWidth: 220 }}>
-            <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3", lineHeight: 1 }}>search</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search orders..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            <button onClick={deleteSelected} disabled={selectedRows.size === 0} title="Delete selected" style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: selectedRows.size > 0 ? "pointer" : "default", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", opacity: selectedRows.size > 0 ? 1 : 0.4 }}>
+              <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#003160", lineHeight: 1 }}>delete_forever</span>
+            </button>
+            {[
+              { icon: "≡", title: "Group" },
+              { icon: "↺", title: "Refresh", onClick: load },
+              { icon: "⊟", title: "Filter" },
+            ].map(({ icon, title, onClick }: { icon: string; title: string; onClick?: () => void }) => (
+              <button key={title} title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#003160", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ height: 1, background: "#E4E7EC", margin: "0 -20px 10px" }} />
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff" }}>
+            <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "#98A2B3", lineHeight: 1, userSelect: "none" as const }}>search</span>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search orders..." style={{ border: "none", outline: "none", fontSize: 13, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
+            {search && <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>}
           </div>
         </div>
       </div>
@@ -184,6 +319,12 @@ export default function TMSOrders() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
+              <th style={{ width: 36, padding: "0 8px", textAlign: "center" as const }} className="select-all-th" onClick={() => selectedRows.size === filtered.length ? setSelectedRows(new Set()) : setSelectedRows(new Set(filtered.map(o => o.id)))}>
+                <div className={`order-checkbox${selectedRows.size > 0 ? " checked" : ""}`} style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.size > 0 ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.size === filtered.length && filtered.length > 0 ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", cursor: "pointer" }}>
+                  {selectedRows.size === filtered.length && filtered.length > 0 && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  {selectedRows.size > 0 && selectedRows.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
+                </div>
+              </th>
               {["Reference", "Tags", "Service", "Consignor", "Consignee", "Departure", "Arrival", "Customs", "Gross kg", "Packages", "Planning", "Dep. Status", "Trips", "Digitoll ID", "CMS ID"].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
@@ -195,10 +336,16 @@ export default function TMSOrders() {
               const ds = depColor(order.departure_status);
               const linkedTrips = trips.filter(t => order.trip_ids.includes(t.id));
               return (
-                <tr key={order.id} style={{ borderBottom: "1px solid #E4E7EC" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                <tr key={order.id}
+                  style={{ borderBottom: "1px solid #E4E7EC", background: selectedRows.has(order.id) ? "#EDF0F3" : "transparent" }}
+                  onMouseEnter={e => { if (!selectedRows.has(order.id)) e.currentTarget.style.background = "#F9FAFB"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selectedRows.has(order.id) ? "#EDF0F3" : "transparent"; }}
                 >
+                  <td style={{ padding: "0 8px", width: 36, textAlign: "center" as const }} onClick={() => toggleRow(order.id)}>
+                    <div className={`order-checkbox${selectedRows.has(order.id) ? " checked" : ""}`} style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.has(order.id) ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.has(order.id) ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                      {selectedRows.has(order.id) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </div>
+                  </td>
                   <td style={{ padding: "9px 12px", fontWeight: 600, color: "#175CD3" }}>{order.reference}</td>
                   <td style={{ padding: "9px 12px", color: "#667085" }}>{order.tags || "—"}</td>
                   <td style={{ padding: "9px 12px", color: "#344054" }}>{order.service_code}</td>
@@ -252,7 +399,8 @@ export default function TMSOrders() {
                 </tr>
               );
             })}
-            {filtered.length === 0 && <tr><td colSpan={15} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>No orders found</td></tr>}
+            {loading && <tr><td colSpan={15} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>Loading...</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={15} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>No orders found</td></tr>}
           </tbody>
         </table>
       </div>

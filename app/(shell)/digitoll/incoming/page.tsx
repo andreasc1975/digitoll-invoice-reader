@@ -385,56 +385,74 @@ export default function IncomingDocuments() {
 
   // ── TABLE VIEW ────────────────────────────────────────────────────────────
   const TableView = (
-    <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
-        <div>
-          <h1 style={{ fontSize: 16, fontWeight: 600, color: "#101828", margin: 0, marginBottom: 3 }}>Incoming Documents</h1>
-          <p style={{ fontSize: 12, color: "#667085", margin: 0 }}>Uploaded invoices ready for Digitoll or CMS processing</p>
-        </div>
-        <button style={btnSec} onClick={() => fileInput.current?.click()}>↑ Upload document</button>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 18 }}>
-        {[
-          { label: "Total documents", val: invoices.length, color: "#101828" },
-          { label: "Needs review",    val: reviewCount,     color: "#B42318" },
-          { label: "Ready to use",    val: readyCount,      color: "#B54708" },
-          { label: "Processed",       val: processedCount,  color: "#027A48" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, padding: "14px 16px" }}>
-            <div style={{ fontSize: 11, color: "#667085", fontWeight: 500, marginBottom: 6 }}>{s.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.val}</div>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Övre sektion — ljusgrå */}
+      <div style={{ background: "#F5F5F5", padding: "20px 20px 16px", borderBottom: "1px solid #E4E7EC" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 16, fontWeight: 600, color: "#101828", margin: 0, marginBottom: 3 }}>Incoming Documents</h1>
+            <p style={{ fontSize: 12, color: "#667085", margin: 0 }}>Uploaded invoices ready for Digitoll or CMS processing</p>
           </div>
-        ))}
-      </div>
+          <button style={btnSec} onClick={() => fileInput.current?.click()}>↑ Upload document</button>
+        </div>
 
-      <div
-        onClick={() => fileInput.current?.click()}
-        onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; }}
-        onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#D0D5DD"; }}
-        onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#D0D5DD"; handleFiles(e.dataTransfer.files); }}
-        style={{ border: "2px dashed #D0D5DD", borderRadius: 2, padding: "20px 24px", textAlign: "center", background: "#FAFAFA", marginBottom: 14, cursor: "pointer", transition: "all .15s" }}>
-        <div style={{ fontSize: 28, marginBottom: 6 }}>📄</div>
-        <div style={{ fontSize: 13, color: "#344054", fontWeight: 500 }}>Drop files here or <span style={{ color: "#446BF9" }}>click to upload</span></div>
-        <div style={{ fontSize: 11, color: "#98A2B3", marginTop: 3 }}>PDF, PNG, JPG — extraction starts immediately</div>
-      </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+          {[
+            { label: "Total documents", val: invoices.length, color: "#101828" },
+            { label: "Needs review",    val: reviewCount,     color: "#B42318" },
+            { label: "Ready to use",    val: readyCount,      color: "#B54708" },
+            { label: "Processed",       val: processedCount,  color: "#027A48" },
+          ].map(s => (
+            <div key={s.label} style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, color: "#667085", fontWeight: 500, marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.val}</div>
+            </div>
+          ))}
+        </div>
 
-      <div style={{ padding: "14px 20px 0", borderBottom: "1px solid #E4E7EC" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" as const }}>
-        {([ ["all","All",invoices.length], ["review","Needs review",reviewCount], ["ready","Ready",readyCount], ["processed","Processed",processedCount] ] as [string,string,number][]).map(([key,label,count]) => (
-          <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
-            {label}
-            {filter !== key && <span style={{ background: "#003160", color: "#fff", borderRadius: 2, padding: "0 6px", fontSize: 10, fontWeight: 700 }}>{count}</span>}
-          </button>
-        ))}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", minWidth: 220 }}>
-          <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3" }}>search</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents..." style={{ border: "none", outline: "none", fontSize: 12, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
+        <div
+          onClick={() => fileInput.current?.click()}
+          onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; }}
+          onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#D0D5DD"; }}
+          onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#D0D5DD"; handleFiles(e.dataTransfer.files); }}
+          style={{ border: "2px dashed #D0D5DD", borderRadius: 2, padding: "20px 24px", textAlign: "center", background: "#fff", cursor: "pointer", transition: "all .15s" }}>
+          <div style={{ fontSize: 28, marginBottom: 6 }}>📄</div>
+          <div style={{ fontSize: 13, color: "#344054", fontWeight: 500 }}>Drop files here or <span style={{ color: "#446BF9" }}>click to upload</span></div>
+          <div style={{ fontSize: 11, color: "#98A2B3", marginTop: 3 }}>PDF, PNG, JPG — extraction starts immediately</div>
         </div>
       </div>
 
+      <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+          {([ ["all","All",invoices.length], ["review","Needs review",reviewCount], ["ready","Ready",readyCount], ["processed","Processed",processedCount] ] as [string,string,number][]).map(([key,label,count]) => (
+            <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
+              {label}
+              <span style={{ background: filter === key ? "rgba(255,255,255,0.25)" : "#003160", color: "#fff", borderRadius: 2, padding: "1px 7px", fontSize: 10, fontWeight: 700, minWidth: 20, textAlign: "center" as const, lineHeight: "16px" }}>{count}</span>
+            </button>
+          ))}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            {[
+              { icon: "≡", title: "Group" },
+              { icon: "↺", title: "Refresh" },
+              { icon: "⊟", title: "Filter" },
+            ].map(({ icon, title }) => (
+              <button key={title} title={title} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#003160", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ height: 1, background: "#E4E7EC", margin: "0 -20px 10px" }} />
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff" }}>
+            <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "#98A2B3", lineHeight: 1, userSelect: "none" as const }}>search</span>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents..." style={{ border: "none", outline: "none", fontSize: 13, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
+            {search && <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>}
+          </div>
+        </div>
       </div>
-      <div style={{ background: "#fff" }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" as const }}>
           <colgroup>
             <col style={{ width: "28%" }} /><col style={{ width: "11%" }} /><col style={{ width: "7%" }} />
@@ -498,6 +516,7 @@ export default function IncomingDocuments() {
             {filtered.length === 0 && <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#98A2B3", fontSize: 13 }}>No documents found</td></tr>}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Order {
   id: string;
@@ -33,31 +33,45 @@ interface Trip {
   cms_id: string | null;
 }
 
-const MOCK_ORDERS: Order[] = [
-  { id: "1", reference: "ORD-10421", consignor: "Exporter Sv X AB", consignee: "Company X AS", gross_weight: 1240, packages: 12, customs_status: "Cleared", digitoll_id: null, cms_id: null },
-  { id: "2", reference: "ORD-10422", consignor: "Exporter Sv Y AB", consignee: "Company Y AS", gross_weight: 580, packages: 6, customs_status: "Pending", digitoll_id: null, cms_id: null },
-  { id: "3", reference: "ORD-10423", consignor: "Exporter Sv Z AB", consignee: "Company Z AS", gross_weight: 2100, packages: 20, customs_status: "Cleared", digitoll_id: "SH-DIG-10423", cms_id: "CMS-10423" },
-  { id: "4", reference: "ORD-10424", consignor: "Nordic Freight AS", consignee: "Baltic Lines AS", gross_weight: 890, packages: 8, customs_status: "Cleared", digitoll_id: null, cms_id: null },
-  { id: "5", reference: "ORD-10425", consignor: "EuroFreight AB", consignee: "ScanTrans Norge AS", gross_weight: 340, packages: 3, customs_status: "Cleared", digitoll_id: null, cms_id: null },
-];
 
-const MOCK_TRIPS: Trip[] = [
-  { id: "t1", reference: "TR-6749", tags: "Express", status: "Active", departure: "2026-06-05 08:00", arrival: "2026-06-06 14:00", from: "Gothenburg", to: "Oslo", trip_status: "Dispatched", customs_status: "Cleared", packages: 18, gross_weight: 1820, loading_meters: 4.5, resource: "ABC123", order_ids: ["1", "4"], digitoll_id: null, cms_id: null },
-  { id: "t2", reference: "TR-6750", tags: "", status: "Active", departure: "2026-06-05 10:00", arrival: "2026-06-06 18:00", from: "Stockholm", to: "Bergen", trip_status: "Planned", customs_status: "Pending", packages: 6, gross_weight: 580, loading_meters: 2.0, resource: "XYZ456", order_ids: ["4"], digitoll_id: null, cms_id: null },
-  { id: "t3", reference: "TR-6751", tags: "Priority", status: "Active", departure: "2026-06-06 06:00", arrival: "2026-06-07 12:00", from: "Malmö", to: "Trondheim", trip_status: "Dispatched", customs_status: "Cleared", packages: 24, gross_weight: 2980, loading_meters: 7.2, resource: "DEF789", order_ids: ["3"], digitoll_id: "TR-DIG-6751", cms_id: "CMS-TR-6751" },
-  { id: "t4", reference: "TR-6752", tags: "", status: "Active", departure: "2026-06-07 09:00", arrival: "2026-06-08 16:00", from: "Copenhagen", to: "Stavanger", trip_status: "Planned", customs_status: "Cleared", packages: 9, gross_weight: 940, loading_meters: 3.1, resource: "GHI012", order_ids: [], digitoll_id: null, cms_id: null },
-  { id: "t5", reference: "TR-6753", tags: "Express", status: "Active", departure: "2026-06-08 07:00", arrival: "2026-06-09 13:00", from: "Helsingborg", to: "Kristiansand", trip_status: "Planned", customs_status: "Cleared", packages: 12, gross_weight: 1340, loading_meters: 3.8, resource: "JKL345", order_ids: [], digitoll_id: null, cms_id: null },
-];
+
+
 
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
 export default function TMSTrips() {
-  const [trips, setTrips] = useState<Trip[]>(MOCK_TRIPS);
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/tms/trips");
+    if (res.ok) setTrips(await res.json());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  const loadOrders = useCallback(async () => {
+    const res = await fetch("/api/tms/orders");
+    if (res.ok) setOrders(await res.json());
+  }, []);
+
+  useEffect(() => { loadOrders(); }, [loadOrders]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [linkModal, setLinkModal] = useState<{ tripId: string } | null>(null);
+  const [createModal, setCreateModal] = useState(false);
+  const [createCount, setCreateCount] = useState(1);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    function handleCreate() { setCreateModal(true); }
+    window.addEventListener("digitoll:open-create-menu", handleCreate);
+    return () => window.removeEventListener("digitoll:open-create-menu", handleCreate);
+  }, []);
 
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
@@ -82,9 +96,79 @@ export default function TMSTrips() {
     digitoll: trips.filter(t => !!t.digitoll_id).length,
   };
 
-  function createCms(trip: Trip) {
+  async function createCms(trip: Trip) {
     const cmsId = `CMS-TR-${trip.reference.replace("TR-", "")}`;
     setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cms_id: cmsId } : t));
+    await fetch(`/api/tms/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cms_id: cmsId }),
+    });
+  }
+
+  const FROMS    = ["Gothenburg", "Stockholm", "Malmö", "Copenhagen", "Helsingborg", "Norrköping"];
+  const TOS      = ["Oslo", "Bergen", "Trondheim", "Stavanger", "Kristiansand", "Drammen"];
+  const RESOURCES = ["ABC123", "XYZ456", "DEF789", "GHI012", "JKL345", "MNO678"];
+  const TAGS     = ["", "", "Express", "Priority", ""];
+  const STATUSES = ["Dispatched", "Planned", "Planned", "Planned"];
+
+  function generateTrip(): Trip {
+    const id = `gen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const dep = new Date(Date.now() + Math.random() * 14 * 86400000);
+    const arr = new Date(dep.getTime() + (6 + Math.random() * 18) * 3600000);
+    const num = Math.floor(6754 + Math.random() * 1000);
+    const fromCity = FROMS[Math.floor(Math.random() * FROMS.length)];
+    const toCity   = TOS[Math.floor(Math.random() * TOS.length)];
+    const pkgs = Math.floor(4 + Math.random() * 30);
+    return {
+      id,
+      reference: `TR-${num}`,
+      tags: TAGS[Math.floor(Math.random() * TAGS.length)],
+      status: "Active",
+      departure: dep.toISOString().slice(0, 16).replace("T", " "),
+      arrival: arr.toISOString().slice(0, 16).replace("T", " "),
+      from: fromCity,
+      to: toCity,
+      trip_status: STATUSES[Math.floor(Math.random() * STATUSES.length)],
+      customs_status: Math.random() > 0.2 ? "Cleared" : "Pending",
+      packages: pkgs,
+      gross_weight: Math.floor(pkgs * 80 + Math.random() * 500),
+      loading_meters: Math.round((1 + Math.random() * 8) * 10) / 10,
+      resource: RESOURCES[Math.floor(Math.random() * RESOURCES.length)],
+      order_ids: [],
+      digitoll_id: null,
+      cms_id: null,
+    };
+  }
+
+  async function createTrips() {
+    const newTrips = Array.from({ length: createCount }, generateTrip);
+    await Promise.all(newTrips.map(t =>
+      fetch("/api/tms/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(t),
+      })
+    ));
+    setCreateModal(false);
+    setCreateCount(1);
+    load();
+  }
+
+  function toggleRow(id: string) {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    await Promise.all([...selectedRows].map(id =>
+      fetch(`/api/tms/trips/${id}`, { method: "DELETE" })
+    ));
+    setSelectedRows(new Set());
+    load();
   }
 
   function toggleOrderLink(tripId: string, orderId: string) {
@@ -141,8 +225,8 @@ export default function TMSTrips() {
       if (shRes.ok) {
         const shipment = await shRes.json();
         shipmentIds.push(shipment.id);
-        // Uppdatera order med digitoll_id
-        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, digitoll_id: shipment.reference ?? shipment.id } : o));
+        // Uppdatera order med digitoll_id via API
+        await fetch(`/api/tms/orders/${order.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ digitoll_id: shipment.reference ?? shipment.id }) });
       }
     }
 
@@ -167,11 +251,41 @@ export default function TMSTrips() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        .trip-checkbox { opacity: 0; transition: opacity 0.1s; }
+        .trip-checkbox.checked { opacity: 1 !important; }
+        tr:hover .trip-checkbox { opacity: 1; }
+        .select-all-th:hover .trip-checkbox { opacity: 1; }
+      `}</style>
+
+      {/* Create modal */}
+      {createModal && (
+        <div onClick={() => setCreateModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 360, overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>Create Trips</div>
+              <button onClick={() => setCreateModal(false)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            <div style={{ padding: "20px" }}>
+              <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Number of trips to create</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button onClick={() => setCreateCount(c => Math.max(1, c - 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>−</button>
+                <span style={{ fontSize: 20, fontWeight: 700, color: "#101828", minWidth: 32, textAlign: "center" as const }}>{createCount}</span>
+                <button onClick={() => setCreateCount(c => Math.min(50, c + 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>+</button>
+              </div>
+            </div>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => setCreateModal(false)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
+              <button onClick={createTrips} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Create {createCount} trip{createCount !== 1 ? "s" : ""}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Link modal */}
       {linkModal && linkingTrip && (
         <div onClick={() => setLinkModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 560, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 780, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase", letterSpacing: ".05em" }}>Link Orders to Trip</div>
@@ -243,9 +357,27 @@ export default function TMSTrips() {
               <span style={{ background: filter === key ? "rgba(255,255,255,0.25)" : "#003160", color: "#fff", borderRadius: 2, padding: "0 6px", fontSize: 10, fontWeight: 700 }}>{count}</span>
             </button>
           ))}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", minWidth: 220 }}>
-            <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3", lineHeight: 1 }}>search</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search trips..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            <button onClick={deleteSelected} disabled={selectedRows.size === 0} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: selectedRows.size > 0 ? "pointer" : "default", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", opacity: selectedRows.size > 0 ? 1 : 0.4 }}>
+              <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#003160", lineHeight: 1 }}>delete_forever</span>
+            </button>
+            {[
+              { icon: "≡", title: "Group" },
+              { icon: "↺", title: "Refresh", onClick: load },
+              { icon: "⊟", title: "Filter" },
+            ].map(({ icon, title, onClick }: { icon: string; title: string; onClick?: () => void }) => (
+              <button key={title} title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#003160", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ height: 1, background: "#E4E7EC", margin: "0 -20px 10px" }} />
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff" }}>
+            <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "#98A2B3", lineHeight: 1, userSelect: "none" as const }}>search</span>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search trips..." style={{ border: "none", outline: "none", fontSize: 13, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
+            {search && <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>}
           </div>
         </div>
       </div>
@@ -255,6 +387,12 @@ export default function TMSTrips() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
+              <th style={{ width: 36, padding: "0 8px", textAlign: "center" as const }} className="select-all-th" onClick={() => selectedRows.size === filtered.length ? setSelectedRows(new Set()) : setSelectedRows(new Set(filtered.map(t => t.id)))}>
+                <div className={`trip-checkbox${selectedRows.size > 0 ? " checked" : ""}`} style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.size > 0 ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.size === filtered.length && filtered.length > 0 ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", cursor: "pointer" }}>
+                  {selectedRows.size === filtered.length && filtered.length > 0 && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  {selectedRows.size > 0 && selectedRows.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
+                </div>
+              </th>
               {["Reference", "Tags", "From", "To", "Departure", "Arrival", "Trip Status", "Customs", "Orders", "Gross kg", "Load m", "Resource", "Digitoll ID", "CMS ID"].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
@@ -266,10 +404,16 @@ export default function TMSTrips() {
               const cs = customsColor(trip.customs_status);
               const linkedOrders = orders.filter(o => trip.order_ids.includes(o.id));
               return (
-                <tr key={trip.id} style={{ borderBottom: "1px solid #E4E7EC" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                <tr key={trip.id}
+                  style={{ borderBottom: "1px solid #E4E7EC", background: selectedRows.has(trip.id) ? "#EDF0F3" : "transparent" }}
+                  onMouseEnter={e => { if (!selectedRows.has(trip.id)) e.currentTarget.style.background = "#F9FAFB"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selectedRows.has(trip.id) ? "#EDF0F3" : "transparent"; }}
                 >
+                  <td style={{ padding: "0 8px", width: 36, textAlign: "center" as const }} onClick={() => toggleRow(trip.id)}>
+                    <div className={`trip-checkbox${selectedRows.has(trip.id) ? " checked" : ""}`} style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.has(trip.id) ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.has(trip.id) ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                      {selectedRows.has(trip.id) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </div>
+                  </td>
                   <td style={{ padding: "9px 12px", fontWeight: 600, color: "#175CD3" }}>{trip.reference}</td>
                   <td style={{ padding: "9px 12px", color: "#667085" }}>{trip.tags || "—"}</td>
                   <td style={{ padding: "9px 12px", color: "#344054" }}>{trip.from}</td>
@@ -335,7 +479,8 @@ export default function TMSTrips() {
                 </tr>
               );
             })}
-            {filtered.length === 0 && <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>No trips found</td></tr>}
+            {loading && <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>Loading...</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>No trips found</td></tr>}
           </tbody>
         </table>
       </div>

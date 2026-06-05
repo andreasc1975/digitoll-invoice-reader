@@ -33,6 +33,12 @@ export default function CustomsPage() {
   const [records, setRecords] = useState<CustomsRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    function handleCreate() { openNew(); }
+    window.addEventListener("digitoll:open-create-menu", handleCreate);
+    return () => window.removeEventListener("digitoll:open-create-menu", handleCreate);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/customs");
@@ -161,7 +167,7 @@ export default function CustomsPage() {
 
       {/* Filter bar */}
       <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" as const }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
           {([
             ["all", "All", counts.all],
             ["draft", "Draft", counts.draft],
@@ -172,18 +178,27 @@ export default function CustomsPage() {
           ] as [string, string, number][]).map(([key, label, count]) => (
             <button key={key} onClick={() => setFilter(key)} style={fBtn(filter === key)}>
               {label}
-              <span style={{ background: filter === key ? "rgba(255,255,255,0.25)" : "#003160", color: "#fff", borderRadius: 2, padding: "0 6px", fontSize: 10, fontWeight: 700 }}>{count}</span>
+              <span style={{ background: filter === key ? "rgba(255,255,255,0.25)" : "#003160", color: "#fff", borderRadius: 2, padding: "1px 7px", fontSize: 10, fontWeight: 700, minWidth: 20, textAlign: "center" as const, lineHeight: "16px" }}>{count}</span>
             </button>
           ))}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", minWidth: 200 }}>
-              <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3", lineHeight: 1 }}>search</span>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
-            </div>
-            <button onClick={openNew} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 16px", height: 36, borderRadius: 2, background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
-              <span style={{ fontFamily: "Material Icons", fontSize: 16, lineHeight: 1 }}>add</span>
-              New record
-            </button>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            {[
+              { icon: "≡", title: "Group" },
+              { icon: "↺", title: "Refresh", onClick: load },
+              { icon: "⊟", title: "Filter" },
+            ].map(({ icon, title, onClick }) => (
+              <button key={title} title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: "pointer", borderRadius: 2, color: "#003160", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ height: 1, background: "#E4E7EC", margin: "0 -20px 10px" }} />
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff" }}>
+            <span style={{ fontFamily: "Material Icons", fontSize: 18, color: "#98A2B3", lineHeight: 1, userSelect: "none" as const }}>search</span>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: "none", outline: "none", fontSize: 13, color: "#344054", fontFamily: "inherit", width: "100%", background: "transparent" }} />
+            {search && <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "#98A2B3", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>}
           </div>
         </div>
       </div>
