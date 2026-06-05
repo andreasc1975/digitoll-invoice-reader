@@ -237,7 +237,7 @@ export default function TMSOrders() {
                   <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
                     <th style={{ width: 36, padding: "8px 12px" }} />
                     {["Reference", "From", "To", "Departure", "Arrival"].map(h => (
-                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -326,7 +326,7 @@ export default function TMSOrders() {
                 </div>
               </th>
               {["Reference", "Tags", "Service", "Consignor", "Consignee", "Departure", "Arrival", "Customs", "Gross kg", "Packages", "Planning", "Dep. Status", "Trips", "Digitoll ID", "CMS ID"].map((h, i) => (
-                <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
+                <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
           </thead>

@@ -209,7 +209,7 @@ export default function CustomsPage() {
           <thead>
             <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
               {["Reference", "Consignor", "Consignee", "Border Crossing", "Status", "Digitoll ID", "Created", ""].map((h, i) => (
-                <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
+                <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
           </thead>

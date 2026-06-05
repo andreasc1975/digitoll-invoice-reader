@@ -438,7 +438,7 @@ function ShipmentFormBody({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead><tr style={{ background: "#F9FAFB" }}>
             {["#","IMPORTER","RECEIVER","PRODUCT DESCRIPTION","GROSS WEIGHT",""].map((h,i) => (
-              <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10.5, fontWeight: 700, color: "#667085", letterSpacing: ".04em", borderBottom: "1px solid #E4E7EC" }}>{h}</th>
+              <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", borderBottom: "1px solid #E4E7EC" }}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
@@ -490,7 +490,7 @@ function ShipmentFormBody({
 
         {transportLink === "own" && (
           <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Own Transport</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Own Transport</div>
             <TransportForm form={ownTransport} onChange={setOwnTransport} />
             <button onClick={onSave} disabled={saving} style={btnGreen}>
               {saving ? "Creating…" : "SEND SHIPMENT"}
@@ -500,7 +500,7 @@ function ShipmentFormBody({
 
         {transportLink === "existing" && (
           <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 12 }}>Connect to Existing Transport</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 12 }}>Connect to Existing Transport</div>
             <TransportPickerTable transports={transports} selected={selectedTransport} onSelect={setSelectedTransport} search={transportSearch} onSearch={setTransportSearch} />
           </div>
         )}
@@ -807,7 +807,7 @@ export default function DigitollStart() {
     if (rows.length === 0) return null;
     return (
       <>
-        <tr><td colSpan={14} style={{ background: "#fff", fontSize: 10, fontWeight: 700, color: "#98A2B3", padding: "8px 14px 4px", letterSpacing: ".07em", textTransform: "uppercase" as const, borderBottom: "1px solid #E4E7EC" }}>{heading}</td></tr>
+        <tr><td colSpan={14} style={{ background: "#fff", fontSize: 10, fontWeight: 700, color: "#003160", padding: "8px 14px 4px", letterSpacing: ".07em", textTransform: "uppercase" as const, borderBottom: "1px solid #E4E7EC" }}>{heading}</td></tr>
         {rows.map(row => {
           const d = row.data;
           const isTransport = row.kind === "transport";
@@ -1008,7 +1008,7 @@ export default function DigitollStart() {
                   ["Status", "status"], ["TMS Order", null], ["TMS Trip", null],
                   ["Next step", null], ["Declaration", "decl"], ["", null]
                 ] as [string, string | null][]).map(([h, col], i) => (
-                  <th key={i} onClick={col ? () => handleSort(col) : undefined} style={{ padding: "9px 8px", textAlign: "left", fontSize: 11, fontWeight: 600, color: col ? "#003160" : "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap", overflow: "hidden", cursor: col ? "pointer" : "default", userSelect: "none" }}>
+                  <th key={i} onClick={col ? () => handleSort(col) : undefined} style={{ padding: "9px 8px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap", overflow: "hidden", cursor: col ? "pointer" : "default", userSelect: "none" }}>
                     {h}{col && sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
                   </th>
                 ))}

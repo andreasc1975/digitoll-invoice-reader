@@ -361,7 +361,7 @@ export default function IncomingDocuments() {
     if (manual)          confLabel = <span style={{ fontSize: 10, fontWeight: 600, color: "#027A48" }}>Manual</span>;
     else if (conf === "high") confLabel = <span style={{ fontSize: 10, fontWeight: 600, color: "#027A48" }}>High confidence</span>;
     else if (conf === "med")  confLabel = <span style={{ fontSize: 10, fontWeight: 600, color: "#B54708" }}>Medium</span>;
-    else if (conf === "low")  confLabel = <span style={{ fontSize: 10, fontWeight: 600, color: "#98A2B3" }}>Low confidence</span>;
+    else if (conf === "low")  confLabel = <span style={{ fontSize: 10, fontWeight: 700, color: "#003160" }}>Low confidence</span>;
 
     return (
       <div key={f.key} style={{ marginBottom: 10 }}>
@@ -461,7 +461,7 @@ export default function IncomingDocuments() {
           </colgroup>
           <thead style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
             <tr>{["Document","Source","Size","Uploaded","Status","Completion","Action",""].map((h,i) => (
-              <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#667085", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
+              <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
             ))}</tr>
           </thead>
           <tbody>
@@ -647,7 +647,7 @@ export default function IncomingDocuments() {
                 activeFields.forEach(f => { if (!sections[f.section]) sections[f.section] = []; sections[f.section].push(f); });
                 return Object.entries(sections).map(([section, sFields]) => (
                   <div key={section} style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".07em", marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid #F2F4F7" }}>{section}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".07em", marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid #F2F4F7" }}>{section}</div>
                     <div style={{ display: "grid", gridTemplateColumns: sFields.length === 1 ? "1fr" : "1fr 1fr", gap: "0 12px" }}>
                       {sFields.map(renderField)}
                     </div>
@@ -657,7 +657,7 @@ export default function IncomingDocuments() {
 
               {/* Destination */}
               <div style={{ borderTop: "1px solid #E4E7EC", paddingTop: 16, marginTop: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".07em", marginBottom: 12 }}>Where do you want to send this data?</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".07em", marginBottom: 12 }}>Where do you want to send this data?</div>
 
                 {!destination && (
                   <div>
@@ -693,7 +693,7 @@ export default function IncomingDocuments() {
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <button onClick={() => setDestination(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Create in Digitoll</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Create in Digitoll</span>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                       {[
@@ -717,7 +717,7 @@ export default function IncomingDocuments() {
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <button onClick={() => setCreateType(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Link to transport (optional)</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Link to transport (optional)</span>
                     </div>
                     <div style={{ marginBottom: 12 }}>
                       <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#344054", marginBottom: 4, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Select transport</label>
@@ -745,7 +745,7 @@ export default function IncomingDocuments() {
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <button onClick={() => setCreateType(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Confirm transport creation</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Confirm transport creation</span>
                     </div>
                     <div style={{ background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 2, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#175CD3" }}>
                       A new transport will be created with the extracted data. You can link shipments from the Start page.
@@ -769,7 +769,7 @@ export default function IncomingDocuments() {
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <button onClick={() => setDestination(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Full SAD Declaration</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Full SAD Declaration</span>
                     </div>
                     <div style={{ background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 2, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#B54708" }}>
                       Review and complete all SAD fields above, then submit below.
@@ -793,7 +793,7 @@ export default function IncomingDocuments() {
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <button onClick={() => setDestination(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Send to CMS</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Send to CMS</span>
                     </div>
                     <div style={{ background: "#ECFDF3", border: "1px solid #A9EFC5", borderRadius: 2, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#027A48" }}>
                       The extracted data will be sent as JSON to your CMS system.
