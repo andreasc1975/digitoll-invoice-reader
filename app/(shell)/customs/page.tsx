@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 interface CustomsRecord {
   id: string;
@@ -21,11 +21,7 @@ const STATUS_CONFIG = {
   rejected:  { label: "Rejected",  bg: "#FEF3F2", color: "#B42318", dot: "#F04438" },
 };
 
-const MOCK_RECORDS: CustomsRecord[] = [
-  { id: "1", reference: "CUS-001", consignor: "Exporter Sv X AB", consignee: "Company X AS", border_crossing: "Svinesund", status: "cleared", digitoll_id: "TR-DIG-001", created_at: "2026-06-01" },
-  { id: "2", reference: "CUS-002", consignor: "Nordic Freight AS", consignee: "Baltic Lines AS", border_crossing: "Ørje", status: "submitted", digitoll_id: null, created_at: "2026-06-03" },
-  { id: "3", reference: "CUS-003", consignor: "EuroFreight AB", consignee: "ScanTrans Norge AS", border_crossing: "Magnor", status: "draft", digitoll_id: null, created_at: "2026-06-04" },
-];
+
 
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 13, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
@@ -34,7 +30,17 @@ type FormState = { reference: string; consignor: string; consignee: string; bord
 const emptyForm: FormState = { reference: "", consignor: "", consignee: "", border_crossing: "", status: "draft" };
 
 export default function CustomsPage() {
-  const [records, setRecords] = useState<CustomsRecord[]>(MOCK_RECORDS);
+  const [records, setRecords] = useState<CustomsRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/customs");
+    if (res.ok) setRecords(await res.json());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<"new" | "edit" | null>(null);
@@ -72,20 +78,23 @@ export default function CustomsPage() {
     setModal("edit");
   }
 
-  function save() {
+  async function save() {
     if (!form.reference || !form.consignor || !form.consignee || !form.border_crossing) return;
     if (modal === "new") {
-      const newRecord: CustomsRecord = {
-        id: Date.now().toString(),
-        ...form,
-        digitoll_id: null,
-        created_at: new Date().toISOString().slice(0, 10),
-      };
-      setRecords(prev => [newRecord, ...prev]);
+      await fetch("/api/customs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
     } else if (modal === "edit" && editId) {
-      setRecords(prev => prev.map(r => r.id === editId ? { ...r, ...form } : r));
+      await fetch(`/api/customs/${editId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
     }
     setModal(null);
+    load();
   }
 
   const formValid = !!(form.reference && form.consignor && form.consignee && form.border_crossing);
@@ -224,7 +233,8 @@ export default function CustomsPage() {
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {loading && <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#98A2B3" }}>Loading...</td></tr>}
+            {!loading && filtered.length === 0 && (
               <tr><td colSpan={8} style={{ padding: 60, textAlign: "center", color: "#98A2B3" }}>
                 <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 500, color: "#667085" }}>No customs records</div>
                 <button onClick={openNew} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 2, background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
