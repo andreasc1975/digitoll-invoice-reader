@@ -6,7 +6,7 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("invoices")
-    .select("*, invoice_fields(*)")
+    .select("*, invoice_fields(*), file_path")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -18,13 +18,20 @@ export async function POST(req: NextRequest) {
   const db = supabaseAdmin();
   const formData = await req.formData();
   const file = formData.get("file") as File;
+  const sessionId = formData.get("session_id") as string | null;
 
   if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
   // Create invoice row
   const { data: invoice, error: insertError } = await db
     .from("invoices")
-    .insert({ file_name: file.name, file_size: file.size, status: "processing", completion_pct: 0 })
+    .insert({
+      file_name: file.name,
+      file_size: file.size,
+      status: "processing",
+      completion_pct: 0,
+      session_id: sessionId ?? null,
+    })
     .select()
     .single();
 

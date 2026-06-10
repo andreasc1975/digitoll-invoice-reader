@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ItemsTable from "@/components/ItemsTable";
 
@@ -8,7 +8,9 @@ interface InvoiceField { field_key: string; field_value: string | null; confiden
 interface Invoice {
   id: string; file_name: string; file_size: number; status: string;
   completion_pct: number; created_at: string; transport_id: string | null;
-  shipment_id: string | null; source: string | null; invoice_fields: InvoiceField[];
+  shipment_id: string | null; source: string | null; session_id: string | null;
+  file_path: string | null;
+  invoice_fields: InvoiceField[];
 }
 interface Transport { id: string; reference: string; status: string; }
 type ViewMode = "table" | "split";
@@ -158,6 +160,50 @@ const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex"
 const inp: React.CSSProperties = { width: "100%", padding: "7px 10px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 12.5, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Document names cell med tooltip ──────────────────────────────────────────
+function DocumentNames({ names }: { names: string[] }) {
+  const [hover, setHover] = React.useState(false);
+  const MAX = 2;
+  const visible = names.slice(0, MAX);
+  const hidden  = names.slice(MAX);
+  const isPdf = (n: string) => n.endsWith(".pdf") || n.endsWith(".doc") || n.endsWith(".docx");
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
+      {visible.map((name, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#344054", fontSize: 12.5, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+          <span style={{ fontFamily: "Material Symbols Rounded", fontSize: 16, lineHeight: 1, userSelect: "none" as const, fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24", color: isPdf(name) ? "#D0021B" : "#003160", flexShrink: 0 }}>
+            {isPdf(name) ? "docs" : "code_blocks"}
+          </span>
+          {name}
+        </span>
+      ))}
+      {hidden.length > 0 && (
+        <div style={{ position: "relative" as const, display: "inline-block" }}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "1px 7px", borderRadius: 2, background: "#EFF8FF", color: "#175CD3", fontSize: 11, fontWeight: 700, cursor: "default" }}>
+            +{hidden.length}
+          </span>
+          {hover && (
+            <div style={{ position: "absolute" as const, left: 0, top: "calc(100% + 4px)", background: "#101828", color: "#fff", borderRadius: 2, padding: "8px 12px", zIndex: 50, minWidth: 180, boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }}>
+              {hidden.map((name, i) => (
+                <div key={i} style={{ fontSize: 11.5, marginBottom: i < hidden.length - 1 ? 4 : 0, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "Material Symbols Rounded", fontSize: 14, lineHeight: 1, fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24", color: isPdf(name) ? "#FDA29B" : "#84ADFF" }}>
+                    {isPdf(name) ? "docs" : "code_blocks"}
+                  </span>
+                  {name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function IncomingDocuments() {
   const router = useRouter();
 
@@ -191,6 +237,7 @@ export default function IncomingDocuments() {
 
   // Editable fields state
   const [localFields, setLocalFields]   = useState<Record<string, { value: string; source: string; confidence: string | null }>>({});
+  const [initialFields, setInitialFields] = useState<Record<string, string>>({});
 
   // Lyssna på topbar + för filuppladdning
   useEffect(() => {
@@ -285,6 +332,8 @@ export default function IncomingDocuments() {
     if (!files || files.length === 0) return;
 
     const fileArr = Array.from(files);
+    // Generera ett unikt session_id för hela denna uppladdning
+    const sessionId = crypto.randomUUID();
 
     // Bygg initial uploadedFiles array med URL:er direkt
     const newUploads = fileArr.map(f => ({
@@ -303,11 +352,13 @@ export default function IncomingDocuments() {
     setLocalFields({});
     setView("split"); setProcessing(true); startProgress();
 
-    // Ladda upp alla filer sekventiellt
+    // Ladda upp alla filer sekventiellt med samma session_id
     const updatedUploads = [...newUploads];
     for (let i = 0; i < fileArr.length; i++) {
       const file = fileArr[i];
-      const fd = new FormData(); fd.append("file", file);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("session_id", sessionId);
       const res = await fetch("/api/invoices", { method: "POST", body: fd });
       if (!res.ok) continue;
       const invoice: Invoice = await res.json();
@@ -382,6 +433,27 @@ export default function IncomingDocuments() {
     }
   }
 
+  async function saveForLater() {
+    if (!activeInvoice) { discardAndReturn(); return; }
+    // Spara alla localFields till API
+    for (const [fieldKey, fieldData] of Object.entries(localFields)) {
+      await fetch(`/api/invoices/${activeInvoice.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldKey, fieldValue: fieldData.value }),
+      });
+    }
+    setView("table");
+    setActiveInvoice(null);
+    setFileUrl(null);
+    setDestination(null);
+    setCreateType(null);
+    setLocalFields({});
+    setUploadedFiles([]);
+    setActiveFileIdx(0);
+    load();
+  }
+
   function applyResolutions() {
     const resolved = { ...localFields };
     for (const conflict of conflicts) {
@@ -396,18 +468,83 @@ export default function IncomingDocuments() {
     setConflicts([]);
   }
 
-  function openExisting(inv: Invoice) {
-    setActiveInvoice(inv); setDestination(null); setCreateType(null); setFormMode("digitoll"); setView("split");
-    setUploadedFiles([]); setActiveFileIdx(0);
-    setFileUrl(null); setFileType("application/pdf");
+  async function openExisting(inv: Invoice) {
+    setDestination(null); setCreateType(null); setFormMode("digitoll"); setView("split");
+    setActiveFileIdx(0);
+
+    // Hämta signed URL för det primära dokumentet
+    let primaryUrl: string | null = null;
+    if (inv.file_path) {
+      const res = await fetch(`/api/invoices/${inv.id}/url`);
+      if (res.ok) { const d = await res.json(); primaryUrl = d.url; }
+    }
+    setFileUrl(primaryUrl);
+    setFileType(inv.file_name.endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+    setActiveInvoice(inv);
+
+    // Sätt initialFields
+    const map: Record<string, string> = {};
+    inv.invoice_fields.forEach(f => { if (f.field_value) map[f.field_key] = f.field_value; });
+    setInitialFields(map);
+
+    // Om sessionen har flera dokument — ladda alla
+    if (inv.session_id) {
+      const sessionInvs = invoices.filter(i => i.session_id === inv.session_id);
+      const uploads = await Promise.all(sessionInvs.map(async (si) => {
+        let url = "";
+        if (si.file_path) {
+          const r = await fetch(`/api/invoices/${si.id}/url`);
+          if (r.ok) { const d = await r.json(); url = d.url; }
+        }
+        return { file: new File([], si.file_name), url, type: si.file_name.endsWith(".pdf") ? "application/pdf" : "image/jpeg", invoiceId: si.id, name: si.file_name };
+      }));
+      setUploadedFiles(uploads);
+      setFileUrl(uploads[0]?.url ?? primaryUrl);
+      setFileType(uploads[0]?.type ?? "application/pdf");
+    } else {
+      setUploadedFiles([]);
+    }
   }
 
-  function discardAndReturn() {
+  async function discardAndReturn() {
+    // Ta bort alla nyuppladdade dokument från databasen
+    const idsToDelete = uploadedFiles
+      .map(f => f.invoiceId)
+      .filter(Boolean) as string[];
+    const isExisting = uploadedFiles.length === 0 && activeInvoice;
+    if (!isExisting) {
+      await Promise.all(idsToDelete.map(id =>
+        fetch(`/api/invoices/${id}`, { method: "DELETE" })
+      ));
+    }
     setView("table"); setActiveInvoice(null); setFileUrl(null);
     setDestination(null); setCreateType(null); setShowCmsAnim(false); setCmsStep(0); setLocalFields({});
-    setUploadedFiles([]); setActiveFileIdx(0);
+    setUploadedFiles([]); setActiveFileIdx(0); setInitialFields({});
     load();
   }
+
+  function discardChanges() {
+    // Återställ till senast sparade värden utan att lämna vyn
+    const restored: Record<string, { value: string; source: string; confidence: string | null }> = {};
+    Object.entries(initialFields).forEach(([k, v]) => { restored[k] = { value: v, source: "ai", confidence: null }; });
+    setLocalFields(restored);
+  }
+
+  async function removeDocument() {
+    const idsToDelete = uploadedFiles.length > 0
+      ? uploadedFiles.map(f => f.invoiceId).filter(Boolean) as string[]
+      : activeInvoice ? [activeInvoice.id] : [];
+    await Promise.all(idsToDelete.map(id =>
+      fetch(`/api/invoices/${id}`, { method: "DELETE" })
+    ));
+    setView("table"); setActiveInvoice(null); setFileUrl(null);
+    setDestination(null); setCreateType(null); setShowCmsAnim(false); setCmsStep(0); setLocalFields({});
+    setUploadedFiles([]); setActiveFileIdx(0); setInitialFields({});
+    load();
+  }
+
+  const isNewUpload = uploadedFiles.length > 0;
+  const hasChanges = Object.entries(localFields).some(([k, v]) => v.value !== (initialFields[k] ?? ""));
 
   function switchToFile(idx: number) {
     const f = uploadedFiles[idx];
@@ -457,20 +594,84 @@ export default function IncomingDocuments() {
   }
 
   // ── Filtered invoices ─────────────────────────────────────────────────────
-  const filtered = invoices.filter(inv => {
-    if (search && !inv.file_name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === "review")    return docStatus(inv).label === "Needs review";
-    if (filter === "ready")     return docStatus(inv).label === "Ready";
-    if (filter === "processed") return docStatus(inv).label === "Processed";
+  const sessionRows = groupIntoSessions(invoices);
+  const filtered = sessionRows.filter(row => {
+    const names = row.file_names.join(" ").toLowerCase();
+    if (search && !names.includes(search.toLowerCase())) return false;
+    const st = docStatus(row.invoices[0]);
+    if (filter === "review")    return st.label === "Needs review";
+    if (filter === "ready")     return st.label === "Ready";
+    if (filter === "processed") return st.label === "Processed";
     return true;
   });
-  const reviewCount    = invoices.filter(i => docStatus(i).label === "Needs review").length;
-  const readyCount     = invoices.filter(i => docStatus(i).label === "Ready").length;
-  const processedCount = invoices.filter(i => docStatus(i).label === "Processed").length;
+  const reviewCount    = sessionRows.filter(r => docStatus(r.invoices[0]).label === "Needs review").length;
+  const readyCount     = sessionRows.filter(r => docStatus(r.invoices[0]).label === "Ready").length;
+  const processedCount = sessionRows.filter(r => docStatus(r.invoices[0]).label === "Processed").length;
 
   // Live completion
   const activeFields = formMode === "digitoll" ? DIGITOLL_FIELDS : SAD_FIELDS;
   const comp = calcCompletion(activeFields, localFields);
+  // ── Session groupering ────────────────────────────────────────────────────
+  // Gruppera invoices per session_id, enskilda utan session = egna rader
+  interface SessionRow {
+    id: string; // representant-invoice id (första i sessionen)
+    session_id: string | null;
+    file_names: string[];
+    file_size: number;
+    status: string;
+    completion_pct: number;
+    created_at: string;
+    source: string | null;
+    invoices: Invoice[]; // alla invoices i sessionen
+  }
+
+  function groupIntoSessions(invs: Invoice[]): SessionRow[] {
+    const sessionMap = new Map<string, Invoice[]>();
+    const singles: Invoice[] = [];
+    for (const inv of invs) {
+      if (inv.session_id) {
+        if (!sessionMap.has(inv.session_id)) sessionMap.set(inv.session_id, []);
+        sessionMap.get(inv.session_id)!.push(inv);
+      } else {
+        singles.push(inv);
+      }
+    }
+    const rows: SessionRow[] = [];
+    // Sessions — visa som en rad
+    for (const [sid, group] of sessionMap.entries()) {
+      const sorted = [...group].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const avgPct = Math.round(sorted.reduce((s, i) => s + i.completion_pct, 0) / sorted.length);
+      const worstStatus = sorted.some(i => i.status === "needs_review") ? "needs_review"
+        : sorted.some(i => i.status === "extracted") ? "extracted"
+        : sorted[0].status;
+      rows.push({
+        id: sorted[0].id,
+        session_id: sid,
+        file_names: sorted.map(i => i.file_name),
+        file_size: sorted.reduce((s, i) => s + i.file_size, 0),
+        status: worstStatus,
+        completion_pct: avgPct,
+        created_at: sorted[0].created_at,
+        source: sorted[0].source,
+        invoices: sorted,
+      });
+    }
+    // Enskilda dokument
+    for (const inv of singles) {
+      rows.push({
+        id: inv.id,
+        session_id: null,
+        file_names: [inv.file_name],
+        file_size: inv.file_size,
+        status: inv.status,
+        completion_pct: inv.completion_pct,
+        created_at: inv.created_at,
+        source: inv.source,
+        invoices: [inv],
+      });
+    }
+    return rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
 
   // ── Field renderer ────────────────────────────────────────────────────────
   function renderField(f: typeof DIGITOLL_FIELDS[number]) {
@@ -590,30 +791,18 @@ export default function IncomingDocuments() {
             ))}</tr>
           </thead>
           <tbody>
-            {filtered.map(inv => {
-              const st = docStatus(inv);
+            {filtered.map(row => {
+              const st = docStatus(row.invoices[0]);
               return (
-                <tr key={inv.id} onClick={() => openExisting(inv)} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
+                <tr key={row.id} onClick={() => openExisting(row.invoices[0])} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  <td style={{ padding: "10px 12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#344054", fontSize: 12.5 }}>
-                      <span style={{
-                        fontFamily: "Material Symbols Rounded",
-                        fontSize: 18,
-                        lineHeight: 1,
-                        userSelect: "none",
-                        fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24",
-                        color: (inv.file_name.endsWith(".pdf") || inv.file_name.endsWith(".doc") || inv.file_name.endsWith(".docx")) ? "#D0021B" : "#003160",
-                      }}>
-                        {(inv.file_name.endsWith(".pdf") || inv.file_name.endsWith(".doc") || inv.file_name.endsWith(".docx")) ? "docs" : "code_blocks"}
-                      </span>
-                      {inv.file_name}
-                    </span>
+                  <td style={{ padding: "10px 12px" }}>
+                    <DocumentNames names={row.file_names} />
                   </td>
-                  <td style={{ padding: "10px 12px" }}><SourceBadge source={inv.source} /></td>
-                  <td style={{ padding: "10px 12px", color: "#98A2B3", fontSize: 12 }}>{fmtSize(inv.file_size)}</td>
-                  <td style={{ padding: "10px 12px", color: "#667085", fontSize: 11.5 }}>{fmtDate(inv.created_at)}</td>
+                  <td style={{ padding: "10px 12px" }}><SourceBadge source={row.source} /></td>
+                  <td style={{ padding: "10px 12px", color: "#98A2B3", fontSize: 12 }}>{fmtSize(row.file_size)}</td>
+                  <td style={{ padding: "10px 12px", color: "#667085", fontSize: 11.5 }}>{fmtDate(row.created_at)}</td>
                   <td style={{ padding: "10px 12px" }}>
                     <span title={st.tip} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 2, fontSize: 11.5, fontWeight: 500, background: st.bg, color: st.color }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.color, flexShrink: 0 }} />{st.label}
@@ -622,18 +811,18 @@ export default function IncomingDocuments() {
                   <td style={{ padding: "10px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ flex: 1, height: 4, background: "#F2F4F7", borderRadius: 2, overflow: "hidden", maxWidth: 80 }}>
-                        <div style={{ height: "100%", background: barColor(inv.completion_pct), width: `${inv.completion_pct}%` }} />
+                        <div style={{ height: "100%", background: barColor(row.completion_pct), width: `${row.completion_pct}%` }} />
                       </div>
-                      <span style={{ fontSize: 11, color: "#667085", minWidth: 28 }}>{inv.completion_pct}%</span>
+                      <span style={{ fontSize: 11, color: "#667085", minWidth: 28 }}>{row.completion_pct}%</span>
                     </div>
                   </td>
                   <td style={{ padding: "10px 12px" }}>
-                    <span onClick={e => { e.stopPropagation(); openExisting(inv); }} style={{ color: "#446BF9", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
-                      {docStatus(inv).label === "Processed" ? "View" : "Use data"}
+                    <span onClick={e => { e.stopPropagation(); openExisting(row.invoices[0]); }} style={{ color: "#446BF9", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
+                      {st.label === "Processed" ? "View" : "Use data"}
                     </span>
                   </td>
                   <td style={{ padding: "10px 4px" }}>
-                    <button onClick={e => { e.stopPropagation(); openExisting(inv); }} style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer", color: "#98A2B3", fontSize: 18 }}>⋯</button>
+                    <button onClick={e => { e.stopPropagation(); openExisting(row.invoices[0]); }} style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer", color: "#98A2B3", fontSize: 18 }}>⋯</button>
                   </td>
                 </tr>
               );
@@ -653,7 +842,32 @@ export default function IncomingDocuments() {
       <div style={{ width: "48%", borderRight: "1px solid #E4E7EC", display: "flex", flexDirection: "column", background: "#F9FAFB" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #E4E7EC", background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#344054", textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Source Document</span>
-          <button onClick={discardAndReturn} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085" }}>✕ Discard</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={saveForLater} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#446BF9", borderColor: "#446BF9" }}>
+              <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>bookmark</span>
+              Save for later
+            </button>
+            {!isNewUpload && (
+              <button
+                onClick={discardChanges}
+                disabled={!hasChanges}
+                onMouseEnter={e => { if (hasChanges) (e.currentTarget.style.background = "#FEF3F2"); }}
+                onMouseLeave={e => { (e.currentTarget.style.background = "#fff"); }}
+                style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: hasChanges ? "#B42318" : "#D0D5DD", borderColor: hasChanges ? "#FECDCA" : "#E4E7EC", cursor: hasChanges ? "pointer" : "default", transition: "all 0.15s" }}
+              >
+                Discard Changes
+              </button>
+            )}
+            <button
+              onClick={removeDocument}
+              onMouseEnter={e => { (e.currentTarget.style.background = "#FEF3F2"); (e.currentTarget.style.borderColor = "#FECDCA"); (e.currentTarget.style.color = "#B42318"); }}
+              onMouseLeave={e => { (e.currentTarget.style.background = "#fff"); (e.currentTarget.style.borderColor = "#D0D5DD"); (e.currentTarget.style.color = "#667085"); }}
+              style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085", transition: "all 0.15s" }}
+            >
+              <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>delete</span>
+              Remove
+            </button>
+          </div>
         </div>
 
         {/* Thumbnail-rad — visas om fler än ett dokument */}
