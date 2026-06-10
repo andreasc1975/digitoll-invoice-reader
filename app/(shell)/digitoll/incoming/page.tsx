@@ -15,6 +15,14 @@ type ViewMode = "table" | "split";
 type Destination = "digitoll" | "sad" | "cms" | null;
 type CreateType = "transport" | "shipment" | null;
 
+// Conflict resolver types
+interface FieldConflict {
+  fieldKey: string;
+  label: string;
+  values: { value: string; source: string; confidence: string | null; docName: string; docIdx: number }[];
+}
+interface ConflictResolution { [fieldKey: string]: number; } // index into values array
+
 // ── Field definitions ─────────────────────────────────────────────────────────
 const DIGITOLL_FIELDS = [
   { key: "exp_name",          label: "Exporter name",       required: true,  section: "EXPORTER" },
@@ -171,8 +179,25 @@ export default function IncomingDocuments() {
   const [showCmsAnim, setShowCmsAnim]   = useState(false);
   const [cmsStep, setCmsStep]           = useState(0);
 
+  // Multi-file state
+  const [uploadedFiles, setUploadedFiles] = useState<{ file: File; url: string; type: string; invoiceId: string | null; name: string }[]>([]);
+  const [activeFileIdx, setActiveFileIdx] = useState(0);
+
+  // Conflict resolver state
+  const [conflicts, setConflicts]               = useState<FieldConflict[]>([]);
+  const [resolutions, setResolutions]           = useState<ConflictResolution>({});
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictIdx, setConflictIdx]           = useState(0);
+
   // Editable fields state
   const [localFields, setLocalFields]   = useState<Record<string, { value: string; source: string; confidence: string | null }>>({});
+
+  // Lyssna på topbar + för filuppladdning
+  useEffect(() => {
+    function handleTopbarCreate() { fileInput.current?.click(); }
+    window.addEventListener("digitoll:open-create-menu", handleTopbarCreate);
+    return () => window.removeEventListener("digitoll:open-create-menu", handleTopbarCreate);
+  }, []);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -258,44 +283,148 @@ export default function IncomingDocuments() {
   // ── Upload ────────────────────────────────────────────────────────────────
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const file = files[0];
-    setFileUrl(URL.createObjectURL(file));
-    setFileType(file.type);
+
+    const fileArr = Array.from(files);
+
+    // Bygg initial uploadedFiles array med URL:er direkt
+    const newUploads = fileArr.map(f => ({
+      file: f,
+      url: URL.createObjectURL(f),
+      type: f.type,
+      invoiceId: null as string | null,
+      name: f.name,
+    }));
+
+    setUploadedFiles(newUploads);
+    setActiveFileIdx(0);
+    setFileUrl(newUploads[0].url);
+    setFileType(newUploads[0].type);
     setDestination(null); setCreateType(null);
     setLocalFields({});
     setView("split"); setProcessing(true); startProgress();
 
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch("/api/invoices", { method: "POST", body: fd });
-    if (!res.ok) { setProcessing(false); return; }
-    const invoice: Invoice = await res.json();
+    // Ladda upp alla filer sekventiellt
+    const updatedUploads = [...newUploads];
+    for (let i = 0; i < fileArr.length; i++) {
+      const file = fileArr[i];
+      const fd = new FormData(); fd.append("file", file);
+      const res = await fetch("/api/invoices", { method: "POST", body: fd });
+      if (!res.ok) continue;
+      const invoice: Invoice = await res.json();
+      updatedUploads[i] = { ...updatedUploads[i], invoiceId: invoice.id };
 
-    const fd2 = new FormData(); fd2.append("file", file); fd2.append("invoiceId", invoice.id);
-    await fetch("/api/extract", { method: "POST", body: fd2 });
+      const fd2 = new FormData(); fd2.append("file", file); fd2.append("invoiceId", invoice.id);
+      await fetch("/api/extract", { method: "POST", body: fd2 });
+    }
+    setUploadedFiles(updatedUploads);
 
     const allRes = await fetch("/api/invoices");
     if (allRes.ok) {
       const all: Invoice[] = await allRes.json();
       setInvoices(all);
-      const updated = all.find(i => i.id === invoice.id);
-      if (updated) {
-        setActiveInvoice(updated);
-        const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
-        updated.invoice_fields.forEach(f => { map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence }; });
-        setLocalFields(map);
+      // Sätt aktivt dokument till det första uppladdade
+      const firstId = updatedUploads[0]?.invoiceId;
+      if (firstId) {
+        const updated = all.find(i => i.id === firstId);
+        if (updated) {
+          setActiveInvoice(updated);
+          const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
+          updated.invoice_fields.forEach(f => { map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence }; });
+          setLocalFields(map);
+        }
       }
     }
     completeProgress(() => setProcessing(false));
+
+    // ── Conflict detection ────────────────────────────────────────────────
+    // Samla alla extraherade fält per dokument
+    const allRes2 = await fetch("/api/invoices");
+    if (!allRes2.ok) return;
+    const allInvoices2: Invoice[] = await allRes2.json();
+
+    const docFields: { docName: string; docIdx: number; fields: Record<string, { value: string; confidence: string | null }> }[] = [];
+
+    for (let i = 0; i < updatedUploads.length; i++) {
+      const inv = allInvoices2.find(x => x.id === updatedUploads[i].invoiceId);
+      if (!inv) continue;
+      const fields: Record<string, { value: string; confidence: string | null }> = {};
+      inv.invoice_fields.forEach(f => {
+        if (f.field_value) fields[f.field_key] = { value: f.field_value, confidence: f.confidence };
+      });
+      docFields.push({ docName: updatedUploads[i].name, docIdx: i, fields });
+    }
+
+    if (docFields.length > 1) {
+      // Hitta fält där värden skiljer sig mellan dokument
+      const allKeys = [...new Set(docFields.flatMap(d => Object.keys(d.fields)))];
+      const foundConflicts: FieldConflict[] = [];
+
+      for (const key of allKeys) {
+        const vals = docFields
+          .filter(d => d.fields[key]?.value)
+          .map(d => ({ value: d.fields[key].value, confidence: d.fields[key].confidence, source: "ai", docName: d.docName, docIdx: d.docIdx }));
+
+        if (vals.length > 1) {
+          const unique = [...new Set(vals.map(v => v.value.trim().toLowerCase()))];
+          if (unique.length > 1) {
+            const fieldDef = DIGITOLL_FIELDS.find(f => f.key === key) ?? SAD_FIELDS.find(f => f.key === key);
+            foundConflicts.push({ fieldKey: key, label: fieldDef?.label ?? key, values: vals });
+          }
+        }
+      }
+
+      if (foundConflicts.length > 0) {
+        setConflicts(foundConflicts);
+        setResolutions({});
+        setConflictIdx(0);
+        setShowConflictModal(true);
+      }
+    }
+  }
+
+  function applyResolutions() {
+    const resolved = { ...localFields };
+    for (const conflict of conflicts) {
+      const chosenIdx = resolutions[conflict.fieldKey] ?? 0;
+      const chosen = conflict.values[chosenIdx];
+      if (chosen) {
+        resolved[conflict.fieldKey] = { value: chosen.value, source: "ai", confidence: chosen.confidence };
+      }
+    }
+    setLocalFields(resolved);
+    setShowConflictModal(false);
+    setConflicts([]);
   }
 
   function openExisting(inv: Invoice) {
     setActiveInvoice(inv); setDestination(null); setCreateType(null); setFormMode("digitoll"); setView("split");
+    setUploadedFiles([]); setActiveFileIdx(0);
+    setFileUrl(null); setFileType("application/pdf");
   }
 
   function discardAndReturn() {
     setView("table"); setActiveInvoice(null); setFileUrl(null);
     setDestination(null); setCreateType(null); setShowCmsAnim(false); setCmsStep(0); setLocalFields({});
+    setUploadedFiles([]); setActiveFileIdx(0);
     load();
+  }
+
+  function switchToFile(idx: number) {
+    const f = uploadedFiles[idx];
+    if (!f) return;
+    setActiveFileIdx(idx);
+    setFileUrl(f.url);
+    setFileType(f.type);
+    // Ladda invoice-data för det valda dokumentet
+    if (f.invoiceId) {
+      const inv = invoices.find(i => i.id === f.invoiceId);
+      if (inv) {
+        setActiveInvoice(inv);
+        const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
+        inv.invoice_fields.forEach(field => { map[field.field_key] = { value: field.field_value ?? "", source: field.source, confidence: field.confidence }; });
+        setLocalFields(map);
+      }
+    }
   }
 
   function triggerCms() {
@@ -386,41 +515,6 @@ export default function IncomingDocuments() {
   // ── TABLE VIEW ────────────────────────────────────────────────────────────
   const TableView = (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Övre sektion — ljusgrå */}
-      <div style={{ background: "#F5F5F5", padding: "20px 20px 16px", borderBottom: "1px solid #E4E7EC" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-          <div>
-            <h1 style={{ fontSize: 16, fontWeight: 600, color: "#101828", margin: 0, marginBottom: 3 }}>Incoming Documents</h1>
-            <p style={{ fontSize: 12, color: "#667085", margin: 0 }}>Uploaded invoices ready for Digitoll or CMS processing</p>
-          </div>
-          <button style={btnSec} onClick={() => fileInput.current?.click()}>↑ Upload document</button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
-          {[
-            { label: "Total documents", val: invoices.length, color: "#101828" },
-            { label: "Needs review",    val: reviewCount,     color: "#B42318" },
-            { label: "Ready to use",    val: readyCount,      color: "#B54708" },
-            { label: "Processed",       val: processedCount,  color: "#027A48" },
-          ].map(s => (
-            <div key={s.label} style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, padding: "14px 16px" }}>
-              <div style={{ fontSize: 11, color: "#667085", fontWeight: 500, marginBottom: 6 }}>{s.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.val}</div>
-            </div>
-          ))}
-        </div>
-
-        <div
-          onClick={() => fileInput.current?.click()}
-          onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; }}
-          onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#D0D5DD"; }}
-          onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#D0D5DD"; handleFiles(e.dataTransfer.files); }}
-          style={{ border: "2px dashed #D0D5DD", borderRadius: 2, padding: "20px 24px", textAlign: "center", background: "#fff", cursor: "pointer", transition: "all .15s" }}>
-          <div style={{ fontSize: 28, marginBottom: 6 }}>📄</div>
-          <div style={{ fontSize: 13, color: "#344054", fontWeight: 500 }}>Drop files here or <span style={{ color: "#446BF9" }}>click to upload</span></div>
-          <div style={{ fontSize: 11, color: "#98A2B3", marginTop: 3 }}>PDF, PNG, JPG — extraction starts immediately</div>
-        </div>
-      </div>
 
       <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
@@ -451,7 +545,38 @@ export default function IncomingDocuments() {
           </div>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
+
+      {/* Tabell-yta som också är drop-zon */}
+      <div
+        style={{ flex: 1, overflowY: "auto", position: "relative" as const }}
+        onDragOver={e => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).setAttribute("data-drag", "true");
+          const overlay = e.currentTarget.querySelector(".drop-overlay") as HTMLElement;
+          if (overlay) overlay.style.display = "flex";
+        }}
+        onDragLeave={e => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            (e.currentTarget as HTMLElement).removeAttribute("data-drag");
+            const overlay = e.currentTarget.querySelector(".drop-overlay") as HTMLElement;
+            if (overlay) overlay.style.display = "none";
+          }
+        }}
+        onDrop={e => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).removeAttribute("data-drag");
+          const overlay = e.currentTarget.querySelector(".drop-overlay") as HTMLElement;
+          if (overlay) overlay.style.display = "none";
+          handleFiles(e.dataTransfer.files);
+        }}
+      >
+        {/* Drop overlay */}
+        <div className="drop-overlay" style={{ display: "none", position: "absolute" as const, inset: 0, background: "rgba(68,107,249,0.06)", border: "2px dashed #446BF9", borderRadius: 2, zIndex: 10, flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 12, pointerEvents: "none" as const }}>
+          <span style={{ fontFamily: "Material Icons", fontSize: 48, color: "#446BF9", lineHeight: 1 }}>upload_file</span>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#446BF9" }}>Drop to upload</div>
+          <div style={{ fontSize: 13, color: "#98A2B3" }}>PDF, PNG, JPG</div>
+        </div>
+
         <div style={{ background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" as const }}>
           <colgroup>
@@ -530,6 +655,37 @@ export default function IncomingDocuments() {
           <span style={{ fontSize: 12, fontWeight: 600, color: "#344054", textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Source Document</span>
           <button onClick={discardAndReturn} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085" }}>✕ Discard</button>
         </div>
+
+        {/* Thumbnail-rad — visas om fler än ett dokument */}
+        {uploadedFiles.length > 1 && (
+          <div style={{ display: "flex", gap: 6, padding: "8px 12px", overflowX: "auto", borderBottom: "1px solid #E4E7EC", background: "#fff", flexShrink: 0 }}>
+            {uploadedFiles.map((f, idx) => {
+              const isActive = idx === activeFileIdx;
+              const isPdf = f.type === "application/pdf";
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setActiveFileIdx(idx);
+                    setFileUrl(f.url);
+                    setFileType(f.type);
+                  }}
+                  title={f.name}
+                  style={{ flexShrink: 0, width: 60, cursor: "pointer", borderRadius: 2, border: `2px solid ${isActive ? "#446BF9" : "#E4E7EC"}`, background: isActive ? "#EFF8FF" : "#F9FAFB", overflow: "hidden", transition: "border-color 0.15s" }}
+                >
+                  {isPdf ? (
+                    <div style={{ height: 72, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 4 }}>
+                      <span style={{ fontFamily: "Material Symbols Rounded", fontSize: 24, color: isActive ? "#446BF9" : "#D0021B", lineHeight: 1, fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24" }}>docs</span>
+                      <span style={{ fontSize: 8, color: isActive ? "#446BF9" : "#667085", textAlign: "center" as const, padding: "0 4px", lineHeight: 1.2, wordBreak: "break-all" as const }}>{f.name.length > 12 ? f.name.slice(0, 10) + "…" : f.name}</span>
+                    </div>
+                  ) : (
+                    <img src={f.url} alt={f.name} style={{ width: "100%", height: 72, objectFit: "cover" as const }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {processing ? (
             <div style={{ textAlign: "center", color: "#667085", padding: "0 32px", width: "100%" }}>
@@ -830,9 +986,113 @@ export default function IncomingDocuments() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
       <style>{`@keyframes pulse { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.1); opacity:0.7; } }`}</style>
+
+      {/* ── Conflict Resolver Modal ──────────────────────────────────────── */}
+      {showConflictModal && conflicts.length > 0 && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 2, width: 600, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {/* Header */}
+            <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid #E4E7EC" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#B54708", lineHeight: 1 }}>warning</span>
+                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>Field Conflicts Detected</h3>
+                </div>
+                <span style={{ fontSize: 12, color: "#667085" }}>{conflictIdx + 1} / {conflicts.length} conflicts</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 12, color: "#667085" }}>
+                Multiple documents contain different values for the same fields. Choose which value to use for each conflict.
+              </p>
+              {/* Progress bar */}
+              <div style={{ marginTop: 12, height: 4, background: "#F2F4F7", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${((conflictIdx + 1) / conflicts.length) * 100}%`, background: "#446BF9", borderRadius: 2, transition: "width 0.3s" }} />
+              </div>
+            </div>
+
+            {/* Current conflict */}
+            {(() => {
+              const conflict = conflicts[conflictIdx];
+              const chosen = resolutions[conflict.fieldKey] ?? -1;
+              return (
+                <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 6 }}>Field</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "#101828" }}>{conflict.label}</div>
+                    <div style={{ fontSize: 11, color: "#98A2B3", marginTop: 2, fontFamily: "monospace" }}>{conflict.fieldKey}</div>
+                  </div>
+
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 10 }}>Choose a value</div>
+
+                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                    {conflict.values.map((val, vi) => {
+                      const isChosen = chosen === vi;
+                      const confColor = val.confidence === "high" ? "#027A48" : val.confidence === "medium" ? "#B54708" : "#667085";
+                      const confBg = val.confidence === "high" ? "#ECFDF3" : val.confidence === "medium" ? "#FFFAEB" : "#F2F4F7";
+                      return (
+                        <div
+                          key={vi}
+                          onClick={() => setResolutions(r => ({ ...r, [conflict.fieldKey]: vi }))}
+                          style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", borderRadius: 2, border: `2px solid ${isChosen ? "#446BF9" : "#E4E7EC"}`, background: isChosen ? "#EFF8FF" : "#fff", cursor: "pointer", transition: "all 0.15s" }}
+                        >
+                          <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${isChosen ? "#446BF9" : "#D0D5DD"}`, background: isChosen ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                            {isChosen && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: "#101828", marginBottom: 4 }}>{val.value}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 11, color: "#667085", display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>description</span>
+                                {val.docName.length > 30 ? val.docName.slice(0, 28) + "…" : val.docName}
+                              </span>
+                              {val.confidence && (
+                                <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 2, background: confBg, color: confColor }}>
+                                  {val.confidence} confidence
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Footer */}
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {conflicts.map((_, i) => (
+                  <div key={i} onClick={() => setConflictIdx(i)} style={{ width: 8, height: 8, borderRadius: "50%", background: resolutions[conflicts[i].fieldKey] !== undefined ? "#446BF9" : i === conflictIdx ? "#003160" : "#E4E7EC", cursor: "pointer", transition: "background 0.15s" }} />
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {conflictIdx > 0 && (
+                  <button onClick={() => setConflictIdx(i => i - 1)} style={{ padding: "7px 14px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>← Back</button>
+                )}
+                {conflictIdx < conflicts.length - 1 ? (
+                  <button
+                    onClick={() => setConflictIdx(i => i + 1)}
+                    disabled={resolutions[conflicts[conflictIdx].fieldKey] === undefined}
+                    style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: resolutions[conflicts[conflictIdx].fieldKey] !== undefined ? "#446BF9" : "#D9DBE0", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: resolutions[conflicts[conflictIdx].fieldKey] !== undefined ? "pointer" : "default", fontFamily: "inherit" }}
+                  >Next →</button>
+                ) : (
+                  <button
+                    onClick={applyResolutions}
+                    disabled={Object.keys(resolutions).length < conflicts.length}
+                    style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: Object.keys(resolutions).length >= conflicts.length ? "#17B26A" : "#D9DBE0", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: Object.keys(resolutions).length >= conflicts.length ? "pointer" : "default", fontFamily: "inherit" }}
+                  >
+                    Apply {Object.keys(resolutions).length} / {conflicts.length} resolutions ✓
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {view === "table" ? TableView : SplitView}
       {CmsOverlay}
-      <input ref={fileInput} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => handleFiles(e.target.files)} />
+      <input ref={fileInput} type="file" multiple accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => handleFiles(e.target.files)} />
     </div>
   );
 }
