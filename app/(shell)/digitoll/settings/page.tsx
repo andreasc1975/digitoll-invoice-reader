@@ -1,5 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+
+function getSADSection(key: string): string | null {
+  if (["sad_exp_name","sad_exp_address","sad_exp_country","sad_exp_org_no","sad_imp_name","sad_imp_address","sad_imp_org_no","sad_imp_vat_no","sad_declarant_name","sad_declarant_org_no"].includes(key)) return "A — Parties (SAD fields 2, 8, 14)";
+  if (["sad_declaration_ref","sad_invoice_number","sad_invoice_date","sad_prev_document","sad_licences"].includes(key)) return "B — References & Documents (SAD fields 7, 40, 44)";
+  if (["sad_incoterm","sad_incoterm_place","sad_transport_mode_border","sad_transport_ref_border","sad_transport_mode_inland","sad_border_crossing","sad_country_dispatch","sad_country_destination"].includes(key)) return "C — Transport & Routing (SAD fields 15, 17, 20, 21, 25, 29)";
+  if (["sad_goods_description","sad_hs_code","sad_country_origin","sad_gross_weight","sad_net_weight","sad_packages","sad_supplementary_units"].includes(key)) return "D — Goods (SAD fields 31, 33, 34, 35, 38, 41)";
+  if (["sad_invoice_value","sad_currency","sad_exchange_rate","sad_statistical_value","sad_customs_duty_rate","sad_customs_duty_amount","sad_vat_basis","sad_payment_method"].includes(key)) return "E — Value & Duties (SAD fields 22, 23, 46, 47)";
+  return null;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface FieldConfig {
@@ -10,6 +19,7 @@ interface FieldConfig {
   required: boolean;
   enabled: boolean;
   custom: boolean;
+  section?: string;
 }
 
 type Tab = "digitoll" | "declaration";
@@ -36,32 +46,57 @@ const DIGITOLL_DEFAULTS: FieldConfig[] = [
   { key: "invoiceNumber",     label: "Invoice number",       description: "Seller's invoice reference number",                type: "text",   required: false, enabled: false, custom: false },
 ];
 
+// SAD = Single Administrative Document — Norwegian Customs (TVINN)
+// Grouped by SAD section. SAD field numbers in description for reference.
 const DECLARATION_DEFAULTS: FieldConfig[] = [
-  { key: "exp_name",          label: "Exporter name",        description: "Legal name of the exporting company",              type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "exp_address",       label: "Exporter address",     description: "Full street address of exporter",                  type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "exp_country",       label: "Exporter country",     description: "Country of origin / export",                       type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "imp_name",          label: "Importer name",        description: "Legal name of the importing company",              type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "imp_address",       label: "Importer address",     description: "Full street address of importer in Norway",        type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "imp_org_no",        label: "Importer org.no",      description: "Norwegian organisation number (9 digits)",          type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "imp_vat_no",        label: "Importer VAT no.",     description: "MVA-number for the Norwegian importer",            type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "totalValue",        label: "Total value",          description: "Total invoice value",                               type: "number", required: true,  enabled: true,  custom: false },
-  { key: "currency",          label: "Currency",             description: "Invoice currency (ISO 4217)",                       type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "customsValue",      label: "Customs value",        description: "Statistical/customs value in NOK",                  type: "number", required: true,  enabled: true,  custom: false },
-  { key: "incoterm",          label: "Incoterm",             description: "Delivery terms",                                   type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "incotermPlace",     label: "Incoterm place",       description: "Named place for the incoterm",                     type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "destinationCountry",label: "Destination country",  description: "Country of destination",                           type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "countryOfOrigin",   label: "Country of origin",    description: "Where the goods were manufactured",                type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "hsCode",            label: "HS code",              description: "Harmonized System commodity code (min. 6 digits)", type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "goodsDescription",  label: "Goods description",    description: "Plain text description of goods",                  type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "totalNetWeight",    label: "Net weight (kg)",      description: "Total net weight of all goods",                    type: "number", required: true,  enabled: true,  custom: false },
-  { key: "totalGrossWeight",  label: "Gross weight (kg)",    description: "Total gross weight including packaging",            type: "number", required: true,  enabled: true,  custom: false },
-  { key: "numberOfPackages",  label: "Number of packages",   description: "Total number of packages / colli",                 type: "number", required: true,  enabled: true,  custom: false },
-  { key: "modeOfTransport",   label: "Mode of transport",    description: "Road, Ship, Fly, Rail",                            type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "transportRef",      label: "Transport reference",  description: "Vehicle reg., IMO, flight number etc.",            type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "invoiceDate",       label: "Invoice date",         description: "Date the invoice was issued",                      type: "date",   required: true,  enabled: true,  custom: false },
-  { key: "invoiceNumber",     label: "Invoice number",       description: "Seller's invoice reference number",                type: "text",   required: true,  enabled: true,  custom: false },
-  { key: "paymentTerms",      label: "Payment terms",        description: "Net days, payment method etc.",                    type: "text",   required: false, enabled: false, custom: false },
-  { key: "bankDetails",       label: "Bank / IBAN",          description: "Seller's bank account for payment",               type: "text",   required: false, enabled: false, custom: false },
+
+  // ── SECTION A: Parties (SAD fields 2, 8, 14) ──────────────────────────────
+  { key: "sad_exp_name",           label: "Exporter name",              description: "SAD field 2 — Legal name of the exporting company",                              type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_exp_address",        label: "Exporter address",           description: "SAD field 2 — Full street address of exporter",                                  type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_exp_country",        label: "Exporter country",           description: "SAD field 2 — ISO country code of exporter (e.g. SE, DE)",                       type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_exp_org_no",         label: "Exporter org. no.",          description: "SAD field 2 — Organisation/VAT number of the exporter",                          type: "text",   required: false, enabled: true,  custom: false },
+  { key: "sad_imp_name",           label: "Importer name",              description: "SAD field 8 — Legal name of the importing company in Norway",                    type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_imp_address",        label: "Importer address",           description: "SAD field 8 — Full street address of importer in Norway",                        type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_imp_org_no",         label: "Importer org. no.",          description: "SAD field 8 — Norwegian organisation number (9 digits)",                         type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_imp_vat_no",         label: "Importer VAT no.",           description: "SAD field 8 — Norwegian MVA-number (format: MVA + 9 digits)",                   type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_declarant_name",     label: "Declarant / agent name",     description: "SAD field 14 — Name of the customs agent or declarant submitting to TVINN",      type: "text",   required: false, enabled: true,  custom: false },
+  { key: "sad_declarant_org_no",   label: "Declarant org. no.",         description: "SAD field 14 — Organisation number of the customs agent",                        type: "text",   required: false, enabled: true,  custom: false },
+
+  // ── SECTION B: References & dates (SAD fields 7, 40, 44) ──────────────────
+  { key: "sad_declaration_ref",    label: "Declaration reference",      description: "SAD field 7 — Declarant's own reference number for the declaration",             type: "text",   required: false, enabled: true,  custom: false },
+  { key: "sad_invoice_number",     label: "Invoice number",             description: "SAD field 44 — Seller's invoice reference number",                               type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_invoice_date",       label: "Invoice date",               description: "SAD field 44 — Date the invoice was issued",                                     type: "date",   required: true,  enabled: true,  custom: false },
+  { key: "sad_prev_document",      label: "Previous document",          description: "SAD field 40 — Transit MRN or other preceding document reference",               type: "text",   required: false, enabled: false, custom: false },
+  { key: "sad_licences",           label: "Licences / permits",         description: "SAD field 44 — Any import licences, health certificates or permits required",    type: "text",   required: false, enabled: false, custom: false },
+
+  // ── SECTION C: Transport (SAD fields 20, 21, 25, 26, 29) ──────────────────
+  { key: "sad_incoterm",           label: "Incoterm",                   description: "SAD field 20 — Delivery terms code (EXW, FOB, CIF, DAP etc.)",                  type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_incoterm_place",     label: "Incoterm place",             description: "SAD field 20 — Named place corresponding to the incoterm",                       type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_transport_mode_border", label: "Transport mode at border",description: "SAD field 21 — Mode of transport crossing the Norwegian border (Road/Sea/Air/Rail)", type: "text", required: true,  enabled: true,  custom: false },
+  { key: "sad_transport_ref_border",  label: "Transport reference",     description: "SAD field 21 — Vehicle reg. no., IMO number, flight number or similar",         type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_transport_mode_inland", label: "Inland transport mode",   description: "SAD field 25 — Mode of transport within Norway after border crossing",          type: "text",   required: false, enabled: false, custom: false },
+  { key: "sad_border_crossing",    label: "Border crossing",            description: "SAD field 29 — Norwegian border crossing point (e.g. Svinesund, Ørje, Magnor)", type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_country_dispatch",   label: "Country of dispatch",        description: "SAD field 15 — Country from which goods were dispatched",                        type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_country_destination",label: "Country of destination",     description: "SAD field 17 — Country of destination (NO for Norway)",                         type: "text",   required: true,  enabled: true,  custom: false },
+
+  // ── SECTION D: Goods (SAD fields 31, 33, 34, 35, 38, 41) ──────────────────
+  { key: "sad_goods_description",  label: "Goods description",          description: "SAD field 31 — Plain text description of the goods",                             type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_hs_code",            label: "HS / commodity code",        description: "SAD field 33 — Harmonized System code, minimum 6 digits (Norwegian tariff)",     type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_country_origin",     label: "Country of origin",          description: "SAD field 34 — Country where the goods were manufactured or produced",           type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_gross_weight",       label: "Gross weight (kg)",          description: "SAD field 35 — Total gross weight including all packaging",                      type: "number", required: true,  enabled: true,  custom: false },
+  { key: "sad_net_weight",         label: "Net weight (kg)",            description: "SAD field 38 — Total net weight of goods excluding packaging",                   type: "number", required: true,  enabled: true,  custom: false },
+  { key: "sad_packages",           label: "Number of packages",         description: "SAD field 31 — Total number of packages / colli",                                type: "number", required: true,  enabled: true,  custom: false },
+  { key: "sad_supplementary_units",label: "Supplementary units",        description: "SAD field 41 — Additional quantity unit if required by tariff (litres, pairs etc.)", type: "text", required: false, enabled: false, custom: false },
+
+  // ── SECTION E: Value & duties (SAD fields 22, 23, 46, 47) ─────────────────
+  { key: "sad_invoice_value",      label: "Invoice value",              description: "SAD field 22 — Total value on the commercial invoice",                           type: "number", required: true,  enabled: true,  custom: false },
+  { key: "sad_currency",           label: "Currency",                   description: "SAD field 22 — Invoice currency code (ISO 4217, e.g. EUR, SEK, USD)",           type: "text",   required: true,  enabled: true,  custom: false },
+  { key: "sad_exchange_rate",      label: "Exchange rate",              description: "SAD field 23 — Exchange rate to NOK at time of declaration",                    type: "number", required: false, enabled: true,  custom: false },
+  { key: "sad_statistical_value",  label: "Statistical value (NOK)",    description: "SAD field 46 — Customs/statistical value in NOK (basis for VAT calculation)",   type: "number", required: true,  enabled: true,  custom: false },
+  { key: "sad_customs_duty_rate",  label: "Customs duty rate (%)",      description: "SAD field 47 — Applicable customs duty rate from Norwegian tariff",             type: "number", required: false, enabled: false, custom: false },
+  { key: "sad_customs_duty_amount",label: "Customs duty amount (NOK)",  description: "SAD field 47 — Calculated customs duty in NOK",                                 type: "number", required: false, enabled: false, custom: false },
+  { key: "sad_vat_basis",          label: "VAT basis (NOK)",            description: "SAD field 47 — Basis for import VAT = statistical value + duties",              type: "number", required: false, enabled: false, custom: false },
+  { key: "sad_payment_method",     label: "Payment method (duties)",    description: "SAD field 47 — How duties will be paid (deferred, immediate etc.)",             type: "text",   required: false, enabled: false, custom: false },
 ];
 
 const STORAGE_KEY_D  = "settings_fields_digitoll";
@@ -292,30 +327,47 @@ export default function SettingsPage() {
             {filtered.length === 0 && (
               <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#98A2B3", fontSize: 13 }}>No fields match</td></tr>
             )}
-            {filtered.map((f, i) => (
-              <tr key={f.key} style={{ borderBottom: "1px solid #E4E7EC", background: f.enabled ? "#fff" : "#FAFAFA", opacity: f.enabled ? 1 : 0.65 }}
-                onMouseEnter={e => (e.currentTarget.style.background = f.enabled ? "#F9FAFB" : "#F5F5F5")}
-                onMouseLeave={e => (e.currentTarget.style.background = f.enabled ? "#fff" : "#FAFAFA")}
-              >
-                <td style={{ padding: "11px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: "#101828" }}>{f.label}</span>
-                    {f.custom && <span style={{ background: "#EFF8FF", color: "#175CD3", borderRadius: 2, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>CUSTOM</span>}
-                    {f.required && f.enabled && <span style={{ background: "#FEF3F2", color: "#B42318", borderRadius: 2, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>REQ</span>}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "#98A2B3" }}>{f.description || <span style={{ fontStyle: "italic" }}>key: {f.key}</span>}</div>
-                </td>
-                <td style={{ padding: "11px 16px" }}><TypeBadge type={f.type} /></td>
-                <td style={{ padding: "11px 16px" }}><Toggle on={f.required} onChange={v => toggleField(f.key, "required", v)} /></td>
-                <td style={{ padding: "11px 16px" }}><Toggle on={f.enabled} onChange={v => toggleField(f.key, "enabled", v)} /></td>
-                <td style={{ padding: "11px 16px", fontSize: 11.5, color: f.enabled ? "#027A48" : "#98A2B3", fontWeight: 500 }}>
-                  {f.enabled ? "Active" : "Disabled"}
-                </td>
-                <td style={{ padding: "11px 16px" }}>
-                  {f.custom && <button onClick={() => removeCustomField(f.key)} style={btnDanger}>✕</button>}
-                </td>
-              </tr>
-            ))}
+            {filtered.map((f, i) => {
+              // Visa sektionsrubrik för SAD-fält
+              const prevF = filtered[i - 1];
+              const section = f.key.startsWith("sad_") ? f.description.split("—")[0].replace("SAD field ", "SAD ").trim() : null;
+              const prevSection = prevF?.key.startsWith("sad_") ? prevF.description.split("—")[0].replace("SAD field ", "SAD ").trim() : null;
+              const sectionLabel = tab === "declaration" && section !== prevSection ? getSADSection(f.key) : null;
+
+              return (
+                <React.Fragment key={f.key}>
+                  {sectionLabel && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: "12px 16px 6px", background: "#F9FAFB", borderBottom: "1px solid #E4E7EC", borderTop: i > 0 ? "2px solid #E4E7EC" : "none" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".08em" }}>{sectionLabel}</span>
+                      </td>
+                    </tr>
+                  )}
+                  <tr style={{ borderBottom: "1px solid #E4E7EC", background: f.enabled ? "#fff" : "#FAFAFA", opacity: f.enabled ? 1 : 0.65 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = f.enabled ? "#F9FAFB" : "#F5F5F5")}
+                    onMouseLeave={e => (e.currentTarget.style.background = f.enabled ? "#fff" : "#FAFAFA")}
+                  >
+                    <td style={{ padding: "11px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#101828" }}>{f.label}</span>
+                        {f.custom && <span style={{ background: "#EFF8FF", color: "#175CD3", borderRadius: 2, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>CUSTOM</span>}
+                        {f.required && f.enabled && <span style={{ background: "#FEF3F2", color: "#B42318", borderRadius: 2, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>REQ</span>}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "#98A2B3" }}>{f.description || <span style={{ fontStyle: "italic" }}>key: {f.key}</span>}</div>
+                    </td>
+                    <td style={{ padding: "11px 16px" }}><TypeBadge type={f.type} /></td>
+                    <td style={{ padding: "11px 16px" }}><Toggle on={f.required} onChange={v => toggleField(f.key, "required", v)} /></td>
+                    <td style={{ padding: "11px 16px" }}><Toggle on={f.enabled} onChange={v => toggleField(f.key, "enabled", v)} /></td>
+                    <td style={{ padding: "11px 16px", fontSize: 11.5, color: f.enabled ? "#027A48" : "#98A2B3", fontWeight: 500 }}>
+                      {f.enabled ? "Active" : "Disabled"}
+                    </td>
+                    <td style={{ padding: "11px 16px" }}>
+                      {f.custom && <button onClick={() => removeCustomField(f.key)} style={btnDanger}>✕</button>}
+                    </td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
 

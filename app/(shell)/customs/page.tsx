@@ -31,6 +31,7 @@ const emptyForm: FormState = { reference: "", consignor: "", consignee: "", bord
 
 export default function CustomsPage() {
   const [records, setRecords] = useState<CustomsRecord[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,6 +39,25 @@ export default function CustomsPage() {
     window.addEventListener("digitoll:open-create-menu", handleCreate);
     return () => window.removeEventListener("digitoll:open-create-menu", handleCreate);
   }, []);
+
+  useEffect(() => {
+    async function handleDelete() {
+      if (selectedRows.size === 0) return;
+      await Promise.all([...selectedRows].map(id =>
+        fetch(`/api/customs/${id}`, { method: "DELETE" })
+      ));
+      setSelectedRows(new Set());
+      load();
+    }
+    window.addEventListener("digitoll:delete-selected", handleDelete);
+    return () => window.removeEventListener("digitoll:delete-selected", handleDelete);
+  }, [selectedRows]);
+
+  // Update topbar trash opacity
+  useEffect(() => {
+    const btn = document.getElementById("topbar-delete-btn");
+    if (btn) btn.style.opacity = selectedRows.size > 0 ? "1" : "0.5";
+  }, [selectedRows]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +102,23 @@ export default function CustomsPage() {
     setForm({ reference: record.reference, consignor: record.consignor, consignee: record.consignee, border_crossing: record.border_crossing, status: record.status });
     setEditId(record.id);
     setModal("edit");
+  }
+
+  function toggleRow(id: string) {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    if (selectedRows.size === 0) return;
+    await Promise.all([...selectedRows].map(id =>
+      fetch(`/api/customs/${id}`, { method: "DELETE" })
+    ));
+    setSelectedRows(new Set());
+    load();
   }
 
   async function save() {
@@ -165,6 +202,12 @@ export default function CustomsPage() {
         </div>
       )}
 
+      <style>{`
+        .customs-cb { opacity: 0; transition: opacity 0.1s; }
+        .customs-cb.checked { opacity: 1 !important; }
+        tr:hover .customs-cb { opacity: 1; }
+      `}</style>
+
       {/* Filter bar */}
       <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
@@ -182,6 +225,9 @@ export default function CustomsPage() {
             </button>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+            <button onClick={deleteSelected} disabled={selectedRows.size === 0} style={{ width: 32, height: 32, border: "none", background: "transparent", cursor: selectedRows.size > 0 ? "pointer" : "default", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", opacity: selectedRows.size > 0 ? 1 : 0.4 }}>
+              <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#003160", lineHeight: 1 }}>delete_forever</span>
+            </button>
             {[
               { icon: "≡", title: "Group" },
               { icon: "↺", title: "Refresh", onClick: load },
@@ -208,6 +254,12 @@ export default function CustomsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
+              <th style={{ width: 36, padding: "0 8px", textAlign: "center" as const, cursor: "pointer" }} onClick={() => selectedRows.size === filtered.length ? setSelectedRows(new Set()) : setSelectedRows(new Set(filtered.map(r => r.id)))}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.size > 0 ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.size === filtered.length && filtered.length > 0 ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                  {selectedRows.size === filtered.length && filtered.length > 0 && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  {selectedRows.size > 0 && selectedRows.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
+                </div>
+              </th>
               {["Reference", "Consignor", "Consignee", "Border Crossing", "Status", "Digitoll ID", "Created", ""].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
@@ -217,10 +269,16 @@ export default function CustomsPage() {
             {filtered.map(record => {
               const sc = STATUS_CONFIG[record.status];
               return (
-                <tr key={record.id} style={{ borderBottom: "1px solid #E4E7EC" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                <tr key={record.id}
+                  style={{ borderBottom: "1px solid #E4E7EC", background: selectedRows.has(record.id) ? "#EDF0F3" : "transparent" }}
+                  onMouseEnter={e => { if (!selectedRows.has(record.id)) e.currentTarget.style.background = "#F9FAFB"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selectedRows.has(record.id) ? "#EDF0F3" : "transparent"; }}
                 >
+                  <td style={{ padding: "0 8px", width: 36, textAlign: "center" as const }} onClick={() => toggleRow(record.id)}>
+                    <div className={`customs-cb${selectedRows.has(record.id) ? " checked" : ""}`} style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.has(record.id) ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.has(record.id) ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                      {selectedRows.has(record.id) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </div>
+                  </td>
                   <td style={{ padding: "9px 12px", fontWeight: 600, color: "#175CD3" }}>{record.reference}</td>
                   <td style={{ padding: "9px 12px", color: "#344054" }}>{record.consignor}</td>
                   <td style={{ padding: "9px 12px", color: "#344054" }}>{record.consignee}</td>

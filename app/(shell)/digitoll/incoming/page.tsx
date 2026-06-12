@@ -208,6 +208,10 @@ export default function IncomingDocuments() {
   const router = useRouter();
 
   const [invoices, setInvoices]         = useState<Invoice[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu]   = useState<{ x: number; y: number; rowId: string } | null>(null);
+  const [deleting, setDeleting]         = useState(false);
+  const [savingLater, setSavingLater]   = useState(false);
   const [transports, setTransports]     = useState<Transport[]>([]);
   const [filter, setFilter]             = useState("all");
   const [search, setSearch]             = useState("");
@@ -245,6 +249,54 @@ export default function IncomingDocuments() {
     window.addEventListener("digitoll:open-create-menu", handleTopbarCreate);
     return () => window.removeEventListener("digitoll:open-create-menu", handleTopbarCreate);
   }, []);
+
+  // Lyssna på topbar delete
+  useEffect(() => {
+    async function handleTopbarDelete() { await deleteSelectedRows(); }
+    window.addEventListener("digitoll:delete-selected", handleTopbarDelete);
+    return () => window.removeEventListener("digitoll:delete-selected", handleTopbarDelete);
+  }, [selectedRows, invoices]);
+
+  // Uppdatera topbar trash-ikon baserat på selection
+  useEffect(() => {
+    const btn = document.getElementById("topbar-delete-btn");
+    if (!btn) return;
+    btn.style.opacity = selectedRows.size > 0 ? "1" : "0.5";
+  }, [selectedRows]);
+
+  function toggleRow(rowId: string) {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId); else next.add(rowId);
+      return next;
+    });
+  }
+
+  async function deleteSelectedRows(extraId?: string) {
+    const toDelete = extraId
+      ? new Set([...selectedRows, extraId])
+      : selectedRows;
+    if (toDelete.size === 0 && !extraId) return;
+    setDeleting(true);
+    setContextMenu(null);
+    const invoiceIds: string[] = [];
+    for (const rowId of toDelete) {
+      // rowId är första invoicens id i sessionen
+      const rep = invoices.find(i => i.id === rowId);
+      if (rep?.session_id) {
+        invoices.filter(i => i.session_id === rep.session_id).forEach(i => invoiceIds.push(i.id));
+      } else if (rep) {
+        invoiceIds.push(rep.id);
+      }
+    }
+    await Promise.all(invoiceIds.map(id =>
+      fetch(`/api/invoices/${id}`, { method: "DELETE" })
+    ));
+    setDeleting(false);
+    setSelectedRows(new Set());
+    setContextMenu(null);
+    load();
+  }
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -435,6 +487,7 @@ export default function IncomingDocuments() {
 
   async function saveForLater() {
     if (!activeInvoice) { discardAndReturn(); return; }
+    setSavingLater(true);
     // Spara alla localFields till API
     for (const [fieldKey, fieldData] of Object.entries(localFields)) {
       await fetch(`/api/invoices/${activeInvoice.id}`, {
@@ -451,6 +504,7 @@ export default function IncomingDocuments() {
     setLocalFields({});
     setUploadedFiles([]);
     setActiveFileIdx(0);
+    setSavingLater(false);
     load();
   }
 
@@ -571,6 +625,116 @@ export default function IncomingDocuments() {
     setTimeout(() => discardAndReturn(), 3800);
   }
 
+  // ── SAD → Digitoll field mapping ─────────────────────────────────────────
+  const SAD_TO_DIGITOLL: Record<string, string> = {
+    sad_exp_name:              "exp_name",
+    sad_exp_country:           "exp_country",
+    sad_imp_name:              "imp_name",
+    sad_imp_org_no:            "imp_org_no",
+    sad_invoice_value:         "totalValue",
+    sad_currency:              "currency",
+    sad_incoterm:              "incoterm",
+    sad_incoterm_place:        "incotermPlace",
+    sad_country_destination:   "destinationCountry",
+    sad_transport_mode_border: "modeOfTransport",
+    sad_transport_ref_border:  "transportRef",
+    sad_border_crossing:       "borderCrossing",
+    sad_net_weight:            "totalNetWeight",
+    sad_gross_weight:          "totalGrossWeight",
+    sad_hs_code:               "hsCode",
+    sad_statistical_value:     "customsValue",
+    sad_invoice_date:          "invoiceDate",
+    sad_invoice_number:        "invoiceNumber",
+  };
+
+  const [submitResult, setSubmitResult] = useState<{ digitollId: string | null; customsRef: string | null } | null>(null);
+  const [submitting, setSubmitting]     = useState(false);
+
+  async function submitSADOnly() {
+    if (!activeInvoice) return;
+    setSubmitting(true);
+    const get = (k: string) => localFields[k]?.value ?? "";
+    const cmsRef = `CMS-${Date.now().toString().slice(-6)}`;
+    const res = await fetch("/api/customs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reference:       cmsRef,
+        consignor:       get("sad_exp_name"),
+        consignee:       get("sad_imp_name"),
+        border_crossing: get("sad_border_crossing"),
+        status:          "submitted",
+        digitoll_id:     null,
+      }),
+    });
+    if (res.ok) {
+      await fetch(`/api/invoices/${activeInvoice.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fieldKey: "cms_ref", fieldValue: cmsRef }) });
+      setSubmitResult({ digitollId: null, customsRef: cmsRef });
+    }
+    setSubmitting(false);
+  }
+
+  async function submitBoth() {
+    if (!activeInvoice) return;
+    setSubmitting(true);
+    const get = (k: string) => localFields[k]?.value ?? "";
+
+    // Step 1: Create Digitoll transport using mapped SAD fields
+    const transportRef = `T-${1000 + Math.floor(Math.random() * 9000)}`;
+    const transportRes = await fetch("/api/transports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reference:      transportRef,
+        border_crossing: get("sad_border_crossing") || get("sad_country_destination"),
+        transport_mode: get("sad_transport_mode_border") || "Road",
+        carrier:        get("sad_transport_ref_border"),
+        actor:          get("sad_exp_name"),
+        status:         "complete_unlinked",
+        declaration_status: "none",
+        source:         "document_reader",
+      }),
+    });
+
+    let digitollId: string | null = null;
+    if (transportRes.ok) {
+      const transport = await transportRes.json();
+      digitollId = transport.state_id ?? transport.reference ?? transportRef;
+    }
+
+    // Step 2: Create Customs declaration
+    const cmsRef = `CMS-${Date.now().toString().slice(-6)}`;
+    const customsRes = await fetch("/api/customs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reference:       cmsRef,
+        consignor:       get("sad_exp_name"),
+        consignee:       get("sad_imp_name"),
+        border_crossing: get("sad_border_crossing"),
+        status:          "submitted",
+        digitoll_id:     digitollId,
+      }),
+    });
+
+    // Step 3: Update Digitoll record with CMS ref if both succeeded
+    if (customsRes.ok && digitollId) {
+      // Customs record gets digitoll_id, Digitoll record already has its ID
+    }
+
+    // Step 4: Mark invoice as processed
+    if (activeInvoice) {
+      await fetch(`/api/invoices/${activeInvoice.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldKey: "cms_ref", fieldValue: cmsRef }),
+      });
+    }
+
+    setSubmitting(false);
+    setSubmitResult({ digitollId, customsRef: cmsRef });
+  }
+
   async function handleCreate() {
     if (!activeInvoice || !createType) return;
     setSaving(true);
@@ -610,7 +774,9 @@ export default function IncomingDocuments() {
 
   // Live completion
   const activeFields = formMode === "digitoll" ? DIGITOLL_FIELDS : SAD_FIELDS;
-  const comp = calcCompletion(activeFields, localFields);
+  const comp          = calcCompletion(activeFields, localFields);
+  const digitollComp  = calcCompletion(DIGITOLL_FIELDS, localFields);
+  const sadComp       = calcCompletion(SAD_FIELDS, localFields);
   // ── Session groupering ────────────────────────────────────────────────────
   // Gruppera invoices per session_id, enskilda utan session = egna rader
   interface SessionRow {
@@ -771,7 +937,16 @@ export default function IncomingDocuments() {
           handleFiles(e.dataTransfer.files);
         }}
       >
-        {/* Drop overlay */}
+        {/* Delete spinner overlay */}
+      {deleting && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.35)", zIndex: 300, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 14 }}>
+          <div style={{ width: 40, height: 40, border: "3px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+          <div style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>Deleting…</div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+
         <div className="drop-overlay" style={{ display: "none", position: "absolute" as const, inset: 0, background: "rgba(68,107,249,0.06)", border: "2px dashed #446BF9", borderRadius: 2, zIndex: 10, flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 12, pointerEvents: "none" as const }}>
           <span style={{ fontFamily: "Material Icons", fontSize: 48, color: "#446BF9", lineHeight: 1 }}>upload_file</span>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#446BF9" }}>Drop to upload</div>
@@ -781,22 +956,57 @@ export default function IncomingDocuments() {
         <div style={{ background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" as const }}>
           <colgroup>
-            <col style={{ width: "28%" }} /><col style={{ width: "11%" }} /><col style={{ width: "7%" }} />
+            <col style={{ width: 36 }} /><col style={{ width: "26%" }} /><col style={{ width: "11%" }} /><col style={{ width: "7%" }} />
             <col style={{ width: "11%" }} /><col style={{ width: "13%" }} /><col style={{ width: "11%" }} />
-            <col style={{ width: "10%" }} /><col style={{ width: "7%" }} /><col style={{ width: 36 }} />
+            <col style={{ width: 36 }} /><col style={{ width: "10%" }} /><col style={{ width: 36 }} />
           </colgroup>
           <thead style={{ background: "#fff", borderBottom: "2px solid #E4E7EC" }}>
-            <tr>{["Document","Source","Size","Uploaded","Status","Completion","Action",""].map((h,i) => (
-              <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
-            ))}</tr>
+            <tr>
+              <th style={{ width: 36, padding: "0 8px", textAlign: "center" as const }} onClick={() => selectedRows.size === filtered.length ? setSelectedRows(new Set()) : setSelectedRows(new Set(filtered.map(r => r.id)))}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${selectedRows.size > 0 ? "#446BF9" : "#D0D5DD"}`, background: selectedRows.size === filtered.length && filtered.length > 0 ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", cursor: "pointer" }}>
+                  {selectedRows.size === filtered.length && filtered.length > 0 && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  {selectedRows.size > 0 && selectedRows.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
+                </div>
+              </th>
+              {["Document","Source","Size","Uploaded","Status","Completion","Action",""].map((h,i) => (
+                <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
+              ))}
+            </tr>
           </thead>
           <tbody>
+            {/* Context menu */}
+            {contextMenu && (
+              <tr style={{ position: "fixed" as any, left: contextMenu.x, top: contextMenu.y, zIndex: 200 }}>
+                <td colSpan={9}>
+                  <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 2, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", minWidth: 160, overflow: "hidden" }}
+                    onMouseLeave={() => setContextMenu(null)}>
+                    <button onClick={() => deleteSelectedRows(contextMenu.rowId)} style={{ width: "100%", padding: "9px 14px", border: "none", background: "transparent", textAlign: "left" as const, fontSize: 12.5, color: "#B42318", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#FEF3F2")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>delete</span>
+                      Delete{selectedRows.size > 1 && selectedRows.has(contextMenu.rowId) ? ` (${selectedRows.size})` : ""}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )}
             {filtered.map(row => {
               const st = docStatus(row.invoices[0]);
+              const isSelected = selectedRows.has(row.id);
               return (
-                <tr key={row.id} onClick={() => openExisting(row.invoices[0])} style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <tr key={row.id}
+                  style={{ borderBottom: "1px solid #E4E7EC", cursor: "pointer", background: isSelected ? "#EDF0F3" : "transparent" }}
+                  onClick={() => openExisting(row.invoices[0])}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "#F9FAFB"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isSelected ? "#EDF0F3" : "transparent"; }}
+                  onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, rowId: row.id }); }}
+                >
+                  <td style={{ padding: "0 8px", width: 36, textAlign: "center" as const }} onClick={e => { e.stopPropagation(); toggleRow(row.id); }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${isSelected ? "#446BF9" : "#D0D5DD"}`, background: isSelected ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", opacity: isSelected ? 1 : undefined }}
+                      className="row-checkbox">
+                      {isSelected && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </div>
+                  </td>
                   <td style={{ padding: "10px 12px" }}>
                     <DocumentNames names={row.file_names} />
                   </td>
@@ -843,26 +1053,28 @@ export default function IncomingDocuments() {
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #E4E7EC", background: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#344054", textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Source Document</span>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={saveForLater} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#446BF9", borderColor: "#446BF9" }}>
+            <button onClick={saveForLater} title="Save for later"
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 2, border: "1px solid #446BF9", background: "#fff", color: "#446BF9", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+              onMouseEnter={e => { (e.currentTarget.style.background = "#EFF8FF"); }}
+              onMouseLeave={e => { (e.currentTarget.style.background = "#fff"); }}
+            >
               <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>bookmark</span>
               Save for later
             </button>
             {!isNewUpload && (
-              <button
-                onClick={discardChanges}
-                disabled={!hasChanges}
+              <button onClick={discardChanges} disabled={!hasChanges} title="Discard unsaved changes"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 2, border: `1px solid ${hasChanges ? "#FECDCA" : "#E4E7EC"}`, background: "#fff", color: hasChanges ? "#B42318" : "#D0D5DD", fontSize: 11.5, fontWeight: 600, cursor: hasChanges ? "pointer" : "default", fontFamily: "inherit", transition: "all 0.15s" }}
                 onMouseEnter={e => { if (hasChanges) (e.currentTarget.style.background = "#FEF3F2"); }}
                 onMouseLeave={e => { (e.currentTarget.style.background = "#fff"); }}
-                style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: hasChanges ? "#B42318" : "#D0D5DD", borderColor: hasChanges ? "#FECDCA" : "#E4E7EC", cursor: hasChanges ? "pointer" : "default", transition: "all 0.15s" }}
               >
+                <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>undo</span>
                 Discard Changes
               </button>
             )}
-            <button
-              onClick={removeDocument}
+            <button onClick={removeDocument} title="Remove document permanently"
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", color: "#667085", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
               onMouseEnter={e => { (e.currentTarget.style.background = "#FEF3F2"); (e.currentTarget.style.borderColor = "#FECDCA"); (e.currentTarget.style.color = "#B42318"); }}
               onMouseLeave={e => { (e.currentTarget.style.background = "#fff"); (e.currentTarget.style.borderColor = "#D0D5DD"); (e.currentTarget.style.color = "#667085"); }}
-              style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5, color: "#667085", transition: "all 0.15s" }}
             >
               <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>delete</span>
               Remove
@@ -948,22 +1160,34 @@ export default function IncomingDocuments() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         {/* Header */}
-        <div style={{ padding: "10px 16px", borderBottom: "1px solid #E4E7EC", background: "#fff" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#101828" }}>{activeInvoice?.file_name ?? "New document"}</span>
-            <span style={{ fontSize: 12, color: "#667085" }}>{comp.filled} / {comp.total} required fields</span>
+        <div style={{ padding: "10px 16px", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#344054", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, flex: 1, marginRight: 10 }}>
+              {activeInvoice?.file_name ?? "New document"}
+            </span>
+            {/* Segmented control */}
+            <div style={{ display: "flex", background: "#F2F4F7", borderRadius: 2, padding: 2, gap: 2, flexShrink: 0 }}>
+              {([
+                { key: "digitoll" as const, icon: "receipt_long", label: "Digitoll", fields: DIGITOLL_FIELDS },
+                { key: "sad"      as const, icon: "gavel",        label: "SAD",       fields: SAD_FIELDS },
+              ]).map(m => {
+                const active = formMode === m.key;
+                const tabComp = calcCompletion(m.fields, localFields);
+                const pctColor = tabComp.pct === 100 ? "#027A48" : tabComp.pct >= 50 ? "#B54708" : "#667085";
+                const pctBg   = tabComp.pct === 100 ? "#ECFDF3" : tabComp.pct >= 50 ? "#FFFAEB" : "#F2F4F7";
+                return (
+                  <button key={m.key} onClick={() => setFormMode(m.key)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 2, border: "none", background: active ? "#fff" : "transparent", cursor: "pointer", boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none", transition: "all .15s", fontFamily: "inherit" }}>
+                    <span style={{ fontFamily: "Material Icons", fontSize: 14, color: active ? "#446BF9" : "#98A2B3", lineHeight: 1 }}>{m.icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: active ? "#003160" : "#98A2B3" }}>{m.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 2, background: active ? pctBg : "#E4E7EC", color: active ? pctColor : "#98A2B3", minWidth: 28, textAlign: "center" as const }}>{tabComp.pct}%</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          {/* Completion bar */}
-          <div style={{ height: 4, background: "#F2F4F7", borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ height: "100%", width: `${comp.pct}%`, background: barColor(comp.pct), transition: "width .3s" }} />
-          </div>
-          {/* Mode tabs */}
-          <div style={{ display: "flex", gap: 4 }}>
-            {(["digitoll","sad"] as const).map(m => (
-              <button key={m} onClick={() => setFormMode(m)} style={{ ...fBtn(formMode === m), fontSize: 10, padding: "4px 10px" }}>
-                {m === "digitoll" ? "Digitoll" : "Full Declaration"}
-              </button>
-            ))}
+          {/* Progress bar för aktiv tab */}
+          <div style={{ height: 3, background: "#F2F4F7", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${comp.pct}%`, background: barColor(comp.pct), borderRadius: 2, transition: "width .3s" }} />
           </div>
         </div>
 
@@ -1025,155 +1249,114 @@ export default function IncomingDocuments() {
                 ));
               })()}
 
-              {/* Destination */}
-              <div style={{ borderTop: "1px solid #E4E7EC", paddingTop: 16, marginTop: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".07em", marginBottom: 12 }}>Where do you want to send this data?</div>
+            </>
+          )}
+        </div>
 
-                {!destination && (
-                  <div>
-                    {comp.pct < 100 && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "#FEF3F2", border: "1px solid #FECDCA", borderRadius: 2, marginBottom: 12, fontSize: 12, color: "#B42318" }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 16, flexShrink: 0 }}>warning</span>
-                        <span>
-                          <strong>{comp.total - comp.filled} required field{comp.total - comp.filled !== 1 ? "s" : ""} missing</strong>
-                          {" "}— scroll up to complete the form before sending
-                        </span>
-                      </div>
-                    )}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                    {[
-                      { key: "digitoll" as Destination, icon: "🚛", label: "Digitoll",          sub: "Create Transport or Shipment for Norwegian Customs" },
-                      { key: "sad"      as Destination, icon: "📋", label: "Full Declaration",  sub: "Create a full SAD customs declaration" },
-                      { key: "cms"      as Destination, icon: "⬡",  label: "CMS",               sub: "Send extracted data to CMS system" },
-                    ].map(opt => (
-                      <div key={opt.key as string} onClick={() => { setDestination(opt.key); if (opt.key === "sad") setFormMode("sad"); }}
-                        style={{ border: "1px solid #E4E7EC", borderRadius: 2, padding: 12, cursor: "pointer", textAlign: "center" as const, transition: "all .15s" }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; (e.currentTarget as HTMLElement).style.background = "#F5F8FF"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E4E7EC"; (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
-                        <div style={{ fontSize: 22, marginBottom: 6 }}>{opt.icon}</div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#101828", marginBottom: 3 }}>{opt.label}</div>
-                        <div style={{ fontSize: 10.5, color: "#667085", lineHeight: 1.4 }}>{opt.sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                  </div>
-                )}
+        {/* Fixed action footer — submit-knappar */}
+        <div style={{ borderTop: "1px solid #E4E7EC", background: "#fff", flexShrink: 0 }}>
 
-                {destination === "digitoll" && !createType && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <button onClick={() => setDestination(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Create in Digitoll</span>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                      {[
-                        { type: "transport" as CreateType, icon: "🚛", label: "New Transport", sub: "Create a transport declaration" },
-                        { type: "shipment"  as CreateType, icon: "📦", label: "New Shipment",  sub: "Create a shipment — link to transport" },
-                      ].map(opt => (
-                        <div key={opt.type as string} onClick={() => setCreateType(opt.type)}
-                          style={{ border: "1px solid #E4E7EC", borderRadius: 2, padding: 14, cursor: "pointer", transition: "all .15s" }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#84ADFF"; (e.currentTarget as HTMLElement).style.background = "#F5F8FF"; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E4E7EC"; (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
-                          <div style={{ fontSize: 22, marginBottom: 6 }}>{opt.icon}</div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#101828", marginBottom: 3 }}>{opt.label}</div>
-                          <div style={{ fontSize: 10.5, color: "#667085" }}>{opt.sub}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {destination === "digitoll" && createType === "shipment" && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <button onClick={() => setCreateType(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Link to transport (optional)</span>
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#344054", marginBottom: 4, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Select transport</label>
-                      <select value={linkTransportId} onChange={e => setLinkTransportId(e.target.value)} style={{ ...inp }}>
-                        <option value="">— Send as own transport —</option>
-                        {transports.map(t => <option key={t.id} value={t.id}>{t.reference}</option>)}
-                      </select>
-                    </div>
-                    {comp.pct < 100 && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#FEF3F2", border: "1px solid #FECDCA", borderRadius: 2, marginBottom: 10, fontSize: 12, color: "#B42318" }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 14 }}>warning</span>
-                        {comp.total - comp.filled} required field{comp.total - comp.filled !== 1 ? "s" : ""} missing — please complete the form before submitting
-                      </div>
-                    )}
-                    <button
-                      onClick={handleCreate}
-                      disabled={saving || comp.pct < 100}
-                      title={comp.pct < 100 ? `${comp.total - comp.filled} required fields missing` : ""}
-                      style={{ ...btnPri, opacity: (saving || comp.pct < 100) ? 0.4 : 1, cursor: comp.pct < 100 ? "not-allowed" : "pointer" }}
-                    >{saving ? "Creating…" : "Confirm & create shipment"}</button>
-                  </div>
-                )}
-
-                {destination === "digitoll" && createType === "transport" && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <button onClick={() => setCreateType(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Confirm transport creation</span>
-                    </div>
-                    <div style={{ background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 2, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#175CD3" }}>
-                      A new transport will be created with the extracted data. You can link shipments from the Start page.
-                    </div>
-                    {comp.pct < 100 && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#FEF3F2", border: "1px solid #FECDCA", borderRadius: 2, marginBottom: 10, fontSize: 12, color: "#B42318" }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 14 }}>warning</span>
-                        {comp.total - comp.filled} required field{comp.total - comp.filled !== 1 ? "s" : ""} missing — please complete the form before submitting
-                      </div>
-                    )}
-                    <button
-                      onClick={handleCreate}
-                      disabled={saving || comp.pct < 100}
-                      title={comp.pct < 100 ? `${comp.total - comp.filled} required fields missing` : ""}
-                      style={{ ...btnPri, opacity: (saving || comp.pct < 100) ? 0.4 : 1, cursor: comp.pct < 100 ? "not-allowed" : "pointer" }}
-                    >{saving ? "Creating…" : "Confirm & create transport"}</button>
-                  </div>
-                )}
-
-                {destination === "sad" && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <button onClick={() => setDestination(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Full SAD Declaration</span>
-                    </div>
-                    <div style={{ background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 2, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#B54708" }}>
-                      Review and complete all SAD fields above, then submit below.
-                    </div>
-                    {comp.pct < 100 && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#FEF3F2", border: "1px solid #FECDCA", borderRadius: 2, marginBottom: 10, fontSize: 12, color: "#B42318" }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 14 }}>warning</span>
-                        {comp.total - comp.filled} required field{comp.total - comp.filled !== 1 ? "s" : ""} missing — please complete the form before submitting
-                      </div>
-                    )}
-                    <button
-                      onClick={() => comp.pct === 100 && alert("SAD submission not yet implemented")}
-                      disabled={comp.pct < 100}
-                      title={comp.pct < 100 ? `${comp.total - comp.filled} required fields missing` : ""}
-                      style={{ ...btnPri, opacity: comp.pct < 100 ? 0.4 : 1, cursor: comp.pct < 100 ? "not-allowed" : "pointer" }}
-                    >Submit Full Declaration</button>
-                  </div>
-                )}
-
-                {destination === "cms" && !showCmsAnim && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <button onClick={() => setDestination(null)} style={{ ...btnSec, padding: "4px 10px", fontSize: 11.5 }}>← Back</button>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Send to CMS</span>
-                    </div>
-                    <div style={{ background: "#ECFDF3", border: "1px solid #A9EFC5", borderRadius: 2, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#027A48" }}>
-                      The extracted data will be sent as JSON to your CMS system.
-                    </div>
-                    <button onClick={triggerCms} style={btnPri}>Confirm & send to CMS</button>
+          {/* Inline confirm panel för Digitoll / Customs */}
+          {(destination === "digitoll" || destination === "sad") && !submitResult && !submitting && (
+            <div style={{ padding: "10px 12px", borderBottom: "1px solid #E4E7EC", background: "#F9FAFB", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: "Material Icons", fontSize: 16, color: destination === "digitoll" ? "#446BF9" : "#446BF9", lineHeight: 1 }}>
+                {destination === "digitoll" ? "receipt_long" : "gavel"}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#101828", marginBottom: 2 }}>
+                  {destination === "digitoll" ? "Create Digitoll transport" : "Create Customs Declaration (SAD)"}
+                </div>
+                {(destination === "digitoll" ? digitollComp : sadComp).pct < 100 && (
+                  <div style={{ fontSize: 11, color: "#B42318" }}>
+                    {(destination === "digitoll" ? digitollComp : sadComp).total - (destination === "digitoll" ? digitollComp : sadComp).filled} required field{((destination === "digitoll" ? digitollComp : sadComp).total - (destination === "digitoll" ? digitollComp : sadComp).filled) !== 1 ? "s" : ""} missing
                   </div>
                 )}
               </div>
-            </>
+              <button onClick={() => setDestination(null)}
+                style={{ padding: "5px 10px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", color: "#667085", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button
+                onClick={async () => { if (destination === "sad") { await submitSADOnly(); } else { await handleCreate(); } }}
+                disabled={(destination === "digitoll" ? digitollComp : sadComp).pct < 100 || submitting}
+                style={{ padding: "5px 12px", borderRadius: 2, border: "none", background: (destination === "digitoll" ? digitollComp : sadComp).pct === 100 ? "#446BF9" : "#D9DBE0", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: (destination === "digitoll" ? digitollComp : sadComp).pct === 100 ? "pointer" : "default", fontFamily: "inherit" }}>
+                Confirm
+              </button>
+            </div>
           )}
+
+          {/* Knappar */}
+          <div style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+            {submitResult ? (
+              <button onClick={() => { saveForLater(); setSubmitResult(null); }}
+                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 14px", borderRadius: 2, border: "none", background: "#12B76A", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>check_circle</span>
+                Done — {submitResult.digitollId ?? ""}{submitResult.customsRef ? ` · ${submitResult.customsRef}` : ""}
+              </button>
+            ) : submitting ? (
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#667085", fontSize: 12 }}>
+                <div style={{ width: 14, height: 14, border: "2px solid #E4E7EC", borderTopColor: "#446BF9", borderRadius: "50%", animation: "spin 0.7s linear infinite", flexShrink: 0 }} />
+                Submitting…
+              </div>
+            ) : (() => {
+              const bothOk     = digitollComp.pct === 100 && sadComp.pct === 100;
+              const digitollOk = digitollComp.pct === 100;
+              const sadOk      = sadComp.pct === 100;
+
+              const btnBase = (enabled: boolean, active: boolean): React.CSSProperties => ({
+                flex: 1,
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "8px 10px", borderRadius: 2, fontFamily: "inherit",
+                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" as const,
+                transition: "all 0.15s",
+                cursor: enabled ? "pointer" : "not-allowed",
+                                border: active ? "2px solid #446BF9" : "1px solid #D0D5DD",
+                background: active ? "#EFF8FF" : enabled ? "#fff" : "#F9FAFB",
+                color: active ? "#446BF9" : enabled ? "#344054" : "#98A2B3",
+              });
+
+              const btnPrimary = (enabled: boolean): React.CSSProperties => ({
+                flex: 2,
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "8px 12px", borderRadius: 2, fontFamily: "inherit",
+                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" as const,
+                transition: "all 0.15s",
+                cursor: enabled ? "pointer" : "not-allowed",
+                                border: "none",
+                background: enabled ? "#446BF9" : "#D9DBE0",
+                color: "#fff",
+              });
+
+              return (
+                <>
+                  <button
+                    onClick={() => { if (bothOk) { setFormMode("sad"); submitBoth(); } }}
+                    style={btnPrimary(bothOk)}
+                    title={!bothOk ? `${!digitollOk ? "Digitoll fields incomplete. " : ""}${!sadOk ? "SAD fields incomplete." : ""}` : "Create Digitoll transport and Customs Declaration in one step"}
+                  >
+                    <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>send</span>
+                    Submit both
+                  </button>
+                  <button
+                    onClick={() => digitollOk && setDestination(destination === "digitoll" ? null : "digitoll")}
+                    style={{ ...btnBase(digitollOk, destination === "digitoll"), border: destination === "digitoll" ? "2px solid #446BF9" : digitollOk ? "1px solid #D0D5DD" : "1px solid #E4E7EC" }}
+                    title={!digitollOk ? `${digitollComp.total - digitollComp.filled} Digitoll fields missing` : "Create Digitoll transport"}
+                  >
+                    <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>receipt_long</span>
+                    Digitoll
+                  </button>
+                  <button
+                    onClick={() => { if (sadOk) { setDestination(destination === "sad" ? null : "sad"); setFormMode("sad"); } }}
+                    style={{ ...btnBase(sadOk, destination === "sad"), border: destination === "sad" ? "2px solid #446BF9" : sadOk ? "1px solid #D0D5DD" : "1px solid #E4E7EC" }}
+                    title={!sadOk ? `${sadComp.total - sadComp.filled} SAD fields missing` : "Create Customs Declaration"}
+                  >
+                    <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>gavel</span>
+                    Customs
+                  </button>
+                </>
+              );
+            })()}
+          </div>
         </div>
       </div>
     </div>
@@ -1199,7 +1382,12 @@ export default function IncomingDocuments() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
-      <style>{`@keyframes pulse { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.1); opacity:0.7; } }`}</style>
+      <style>{`
+        @keyframes pulse { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.1); opacity:0.7; } }
+        .row-checkbox { opacity: 0; transition: opacity 0.1s; }
+        tr:hover .row-checkbox { opacity: 1; }
+      `}</style>
+      <div style={{ position: "fixed", inset: 0, zIndex: 199, display: contextMenu ? "block" : "none", background: "transparent" }} onClick={() => setContextMenu(null)} />
 
       {/* ── Conflict Resolver Modal ──────────────────────────────────────── */}
       {showConflictModal && conflicts.length > 0 && (
@@ -1305,6 +1493,13 @@ export default function IncomingDocuments() {
         </div>
       )}
       {view === "table" ? TableView : SplitView}
+      {/* Save for later spinner — visas oavsett view */}
+      {savingLater && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.35)", zIndex: 300, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 14 }}>
+          <div style={{ width: 40, height: 40, border: "3px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+          <div style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>Saving…</div>
+        </div>
+      )}
       {CmsOverlay}
       <input ref={fileInput} type="file" multiple accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => handleFiles(e.target.files)} />
     </div>

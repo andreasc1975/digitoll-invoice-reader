@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Transport {
@@ -18,6 +18,7 @@ interface Transport {
   shipments?: Shipment[];
   source?: string;
   tms_trip_ref?: string | null;
+  tms_order_ids?: string[] | null;
   created_at: string;
 }
 
@@ -122,16 +123,17 @@ function StatusPill({ status, tooltip }: { status: string; tooltip?: string }) {
 
 
 function SourceBadge({ source }: { source?: string }) {
-  const cfg: Record<string, { bg: string; color: string }> = {
-    tms:    { bg: "#EFF8FF", color: "#175CD3" },
-    cms:    { bg: "#ECFDF3", color: "#027A48" },
-    manual: { bg: "#F2F4F7", color: "#667085" },
+  const cfg: Record<string, { bg: string; color: string; label: string }> = {
+    tms:             { bg: "#EFF8FF", color: "#175CD3", label: "TMS" },
+    cms:             { bg: "#ECFDF3", color: "#027A48", label: "CMS" },
+    manual:          { bg: "#F2F4F7", color: "#667085", label: "Manual" },
+    document_reader: { bg: "#FFFAEB", color: "#B54708", label: "Doc Reader" },
   };
   const key = (source ?? "manual").toLowerCase();
   const c = cfg[key] ?? cfg.manual;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 7px", borderRadius: 2, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const, background: c.bg, color: c.color }}>
-      {key}
+    <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 7px", borderRadius: 2, fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const, background: c.bg, color: c.color, whiteSpace: "nowrap" as const, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>
+      {c.label}
     </span>
   );
 }
@@ -276,40 +278,139 @@ function ShipmentPickerTable({ shipments, selected, onToggle, search, onSearch }
   );
 }
 
-// ── Transport picker ──────────────────────────────────────────────────────────
-function TransportPickerTable({ transports, selected, onSelect, search, onSearch }: {
-  transports: Transport[]; selected: string; onSelect: (id: string) => void; search: string; onSearch: (v: string) => void;
+// ── TMS Order picker ──────────────────────────────────────────────────────────
+function TmsOrderPickerTable({ orders, selected, onToggle, search, onSearch }: {
+  orders: { id: string; reference: string; consignor: string; consignee: string; gross_weight: number; packages: number; customs_status: string }[];
+  selected: string[]; onToggle: (id: string) => void; search: string; onSearch: (v: string) => void;
 }) {
-  const filtered = transports.filter(t => !search || t.reference.toLowerCase().includes(search.toLowerCase()) || fmtDate(t.eta).includes(search));
+  const filtered = orders.filter(o =>
+    !search ||
+    o.reference.toLowerCase().includes(search.toLowerCase()) ||
+    (o.consignor ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (o.consignee ?? "").toLowerCase().includes(search.toLowerCase())
+  );
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #D0D5DD", borderRadius: 2, marginBottom: 10 }}>
-        <span style={{ color: "#98A2B3" }}>🔍</span>
-        <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search by date, reference..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, marginBottom: 10 }}>
+        <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3" }}>search</span>
+        <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search orders..." style={{ border: "none", outline: "none", fontSize: 12.5, fontFamily: "inherit", flex: 1 }} />
+      </div>
+      {selected.length > 0 && (
+        <div style={{ marginBottom: 8, padding: "6px 10px", background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 2, fontSize: 12, color: "#175CD3", fontWeight: 500 }}>
+          {selected.length} order{selected.length !== 1 ? "s" : ""} selected
+        </div>
+      )}
+      <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: "#F9FAFB" }}>
+            {["", "Reference", "Consignor", "Consignee", "Gross kg", "Packages", "Customs"].map(h => (
+              <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {filtered.length === 0 && <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "#98A2B3" }}>No orders found</td></tr>}
+            {filtered.map(o => {
+              const checked = selected.includes(o.id);
+              return (
+                <tr key={o.id} onClick={() => onToggle(o.id)} style={{ borderTop: "1px solid #F2F4F7", cursor: "pointer", background: checked ? "#F5F8FF" : "transparent" }}
+                  onMouseEnter={e => { if (!checked) (e.currentTarget.style.background = "#F9FAFB"); }}
+                  onMouseLeave={e => { (e.currentTarget.style.background = checked ? "#F5F8FF" : "transparent"); }}
+                >
+                  <td style={{ padding: "8px 10px" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${checked ? "#446BF9" : "#D0D5DD"}`, background: checked ? "#446BF9" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {checked && <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>}
+                    </div>
+                  </td>
+                  <td style={{ padding: "8px 10px", fontWeight: 600, color: "#175CD3" }}>{o.reference}</td>
+                  <td style={{ padding: "8px 10px", color: "#344054" }}>{o.consignor ?? "—"}</td>
+                  <td style={{ padding: "8px 10px", color: "#344054" }}>{o.consignee ?? "—"}</td>
+                  <td style={{ padding: "8px 10px", color: "#667085" }}>{o.gross_weight ?? "—"}</td>
+                  <td style={{ padding: "8px 10px", color: "#667085" }}>{o.packages ?? "—"}</td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 2, background: o.customs_status === "Cleared" ? "#ECFDF3" : "#FFFAEB", color: o.customs_status === "Cleared" ? "#027A48" : "#B54708", fontWeight: 600 }}>{o.customs_status ?? "—"}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Transport picker ──────────────────────────────────────────────────────────
+function TransportPickerTable({ transports, tmsTrips, selected, onSelect, search, onSearch }: {
+  transports: Transport[];
+  tmsTrips: { id: string; reference: string; from: string; to: string; departure: string; arrival: string; resource: string | null; digitoll_id: string | null }[];
+  selected: string; onSelect: (id: string, isTmsTrip?: boolean) => void; search: string; onSearch: (v: string) => void;
+}) {
+  const q = search.toLowerCase();
+  const filteredTr = transports.filter(t => !search || t.reference.toLowerCase().includes(q) || fmtDate(t.eta).includes(q));
+  const filteredTrips = tmsTrips.filter(t =>
+    !t.digitoll_id && // Visa bara trips som inte redan är i Digitoll
+    (!search || t.reference.toLowerCase().includes(q) || (t.from ?? "").toLowerCase().includes(q) || (t.to ?? "").toLowerCase().includes(q))
+  );
+
+  const Row = ({ id, badge, ref_, col2, col3, col4, col5, isTmsTrip }: { id: string; badge: React.ReactNode; ref_: string; col2: string; col3: string; col4: string; col5: React.ReactNode; isTmsTrip?: boolean }) => (
+    <tr onClick={() => onSelect(id, isTmsTrip)} style={{ borderTop: "1px solid #F2F4F7", cursor: "pointer", background: selected === id ? "#F5F8FF" : "transparent" }}
+      onMouseEnter={e => { if (selected !== id) (e.currentTarget.style.background = "#F9FAFB"); }}
+      onMouseLeave={e => { (e.currentTarget.style.background = selected === id ? "#F5F8FF" : "transparent"); }}>
+      <td style={{ padding: "8px 10px" }}>
+        <div style={{ width: 16, height: 16, border: `2px solid ${selected === id ? "#446BF9" : "#D0D5DD"}`, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {selected === id && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#446BF9", display: "block" }} />}
+        </div>
+      </td>
+      <td style={{ padding: "8px 10px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{badge}{ref_}</span></td>
+      <td style={{ padding: "8px 10px", color: "#667085" }}>{col2}</td>
+      <td style={{ padding: "8px 10px", color: "#344054" }}>{col3}</td>
+      <td style={{ padding: "8px 10px", color: "#98A2B3" }}>{col4}</td>
+      <td style={{ padding: "8px 10px" }}>{col5}</td>
+    </tr>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", border: "1px solid #E4E7EC", borderRadius: 2, marginBottom: 10 }}>
+        <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#98A2B3" }}>search</span>
+        <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search by reference, route..." style={{ border: "none", outline: "none", fontSize: 12.5, color: "#344054", fontFamily: "inherit", flex: 1, background: "transparent" }} />
       </div>
       <div style={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead><tr style={{ background: "#F9FAFB" }}>
             <th style={{ width: 36, padding: "7px 10px" }} />
-            {["ID","ETA","Actor","Transport","Status"].map(h => <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#667085", fontSize: 10.5, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{h}</th>)}
+            {["Reference", "Date / ETA", "From / Actor", "Mode / Route", "Status"].map(h => (
+              <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 700, color: "#003160", fontSize: 10, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{h}</th>
+            ))}
           </tr></thead>
           <tbody>
-            {filtered.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#98A2B3" }}>No transports found</td></tr>}
-            {filtered.map(t => (
-              <tr key={t.id} onClick={() => onSelect(t.id)} style={{ borderTop: "1px solid #F2F4F7", cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <td style={{ padding: "8px 10px" }}>
-                  <div style={{ width: 16, height: 16, border: `2px solid ${selected === t.id ? "#175CD3" : "#D0D5DD"}`, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {selected === t.id && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#175CD3", display: "block" }} />}
-                  </div>
-                </td>
-                <td style={{ padding: "8px 10px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ background: "#EFF8FF", color: "#175CD3", borderRadius: 2, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>TR</span>{t.reference}</span></td>
-                <td style={{ padding: "8px 10px", color: "#667085" }}>{fmtDate(t.eta)}</td>
-                <td style={{ padding: "8px 10px", color: "#344054" }}>{t.actor ?? "—"}</td>
-                <td style={{ padding: "8px 10px", color: "#98A2B3" }}>{t.transport_mode ?? "—"}</td>
-                <td style={{ padding: "8px 10px" }}><StatusPill status={t.status} /></td>
-              </tr>
+            {/* Digitoll transports */}
+            {filteredTr.length > 0 && (
+              <tr><td colSpan={6} style={{ padding: "6px 10px 4px", background: "#F9FAFB", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".06em", textTransform: "uppercase" as const, borderBottom: "1px solid #E4E7EC" }}>Digitoll Transports</td></tr>
+            )}
+            {filteredTr.map(t => (
+              <Row key={t.id} id={t.id}
+                badge={<span style={{ background: "#EFF8FF", color: "#175CD3", borderRadius: 2, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>TR</span>}
+                ref_={t.reference} col2={fmtDate(t.eta)} col3={t.actor ?? "—"} col4={t.transport_mode ?? "—"}
+                col5={<StatusPill status={t.status} />}
+              />
             ))}
+            {/* TMS Trips */}
+            {filteredTrips.length > 0 && (
+              <tr><td colSpan={6} style={{ padding: "6px 10px 4px", background: "#FFFAEB", fontSize: 10, fontWeight: 700, color: "#B54708", letterSpacing: ".06em", textTransform: "uppercase" as const, borderBottom: "1px solid #FEDF89", borderTop: "2px solid #E4E7EC" }}>
+                TMS Trips — will be created in Digitoll when selected
+              </td></tr>
+            )}
+            {filteredTrips.map(t => (
+              <Row key={t.id} id={t.id} isTmsTrip
+                badge={<span style={{ background: "#FFFAEB", color: "#B54708", borderRadius: 2, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>TMS</span>}
+                ref_={t.reference} col2={fmtDate(t.arrival)} col3={`${t.from ?? "—"} → ${t.to ?? "—"}`} col4={t.resource ?? "—"}
+                col5={<span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 2, background: "#FFFAEB", color: "#B54708", fontWeight: 600 }}>Not in Digitoll</span>}
+              />
+            ))}
+            {filteredTr.length === 0 && filteredTrips.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#98A2B3" }}>No transports found</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -417,11 +518,14 @@ interface ShipmentFormProps {
   setTransportLink: (v: TransportLink) => void;
   selectedTransport: string;
   setSelectedTransport: (v: string) => void;
+  selectedTmsTripId: string;
+  setSelectedTmsTripId: (v: string) => void;
   transportSearch: string;
   setTransportSearch: (v: string) => void;
   ownTransport: { transport_mode: string; identifier: string; border_crossing: string; eta: string };
   setOwnTransport: (v: ShipmentFormProps["ownTransport"]) => void;
   transports: Transport[];
+  tmsTrips: { id: string; reference: string; from: string; to: string; departure: string; arrival: string; resource: string | null; digitoll_id: string | null }[];
   saving: boolean;
   onSave: () => void;
   defaultLine: () => ShipmentLine;
@@ -429,8 +533,9 @@ interface ShipmentFormProps {
 
 function ShipmentFormBody({
   lines, setLines, transportLink, setTransportLink,
-  selectedTransport, setSelectedTransport, transportSearch, setTransportSearch,
-  ownTransport, setOwnTransport, transports, saving, onSave, defaultLine,
+  selectedTransport, setSelectedTransport, selectedTmsTripId, setSelectedTmsTripId,
+  transportSearch, setTransportSearch,
+  ownTransport, setOwnTransport, transports, tmsTrips, saving, onSave, defaultLine,
 }: ShipmentFormProps) {
   return (
     <>
@@ -501,7 +606,23 @@ function ShipmentFormBody({
         {transportLink === "existing" && (
           <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 12 }}>Connect to Existing Transport</div>
-            <TransportPickerTable transports={transports} selected={selectedTransport} onSelect={setSelectedTransport} search={transportSearch} onSearch={setTransportSearch} />
+            {selectedTmsTripId && (
+              <div style={{ padding: "8px 12px", background: "#FFFAEB", border: "1px solid #FEDF89", borderRadius: 2, marginBottom: 10, fontSize: 12, color: "#B54708" }}>
+                <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1, verticalAlign: "middle", marginRight: 5 }}>info</span>
+                This TMS Trip will be created as a new Digitoll transport when you save.
+              </div>
+            )}
+            <TransportPickerTable
+              transports={transports}
+              tmsTrips={tmsTrips}
+              selected={selectedTmsTripId || selectedTransport}
+              onSelect={(id, isTmsTrip) => {
+                if (isTmsTrip) { setSelectedTmsTripId(id); setSelectedTransport(""); }
+                else { setSelectedTransport(id); setSelectedTmsTripId(""); }
+              }}
+              search={transportSearch}
+              onSearch={setTransportSearch}
+            />
           </div>
         )}
       </div>
@@ -513,6 +634,8 @@ function ShipmentFormBody({
 export default function DigitollStart() {
   const [transports, setTransports] = useState<Transport[]>([]);
   const [shipments, setShipments]   = useState<Shipment[]>([]);
+  const [tmsOrders, setTmsOrders]   = useState<{ id: string; reference: string; consignor: string; consignee: string; gross_weight: number; packages: number; customs_status: string }[]>([]);
+  const [tmsTrips, setTmsTrips]     = useState<{ id: string; reference: string; from: string; to: string; departure: string; arrival: string; resource: string | null; digitoll_id: string | null }[]>([]);
   const [filter, setFilter]         = useState("all");
   const [search, setSearch]         = useState("");
   const [active, setActive]         = useState<ActiveModal>(null);
@@ -533,7 +656,7 @@ export default function DigitollStart() {
     if (col === "kind")    return row.kind;
     if (col === "state")   return d.state_id ?? "";
     if (col === "id")      return d.reference ?? "";
-    if (col === "sh")      return row.kind === "transport" ? String((d as Transport).shipments?.length ?? 0) : "";
+    if (col === "sh")      return row.kind === "transport" ? String((d as Transport).tms_order_ids?.length ?? 0) : "";
     if (col === "date")    return (d as Transport).ata ?? d.eta ?? d.created_at ?? "";
     if (col === "actor")   return d.actor ?? "";
     if (col === "resp")    return d.responsible ?? "";
@@ -560,15 +683,20 @@ export default function DigitollStart() {
   const [shTransportLink, setShTransportLink]     = useState<TransportLink>("decide_later");
   const [shTransportSearch, setShTransportSearch] = useState("");
   const [shSelectedTransport, setShSelectedTransport] = useState("");
+  const [shSelectedTmsTripId, setShSelectedTmsTripId] = useState("");
   const [shOwnTransport, setShOwnTransport]       = useState(emptyTrForm);
 
   const load = useCallback(async () => {
-    const [tr, sh] = await Promise.all([
+    const [tr, sh, tms, trips] = await Promise.all([
       fetch("/api/transports").then(r => r.json()),
       fetch("/api/shipments").then(r => r.json()),
+      fetch("/api/tms/orders").then(r => r.json()),
+      fetch("/api/tms/trips").then(r => r.json()),
     ]);
-    if (Array.isArray(tr)) setTransports(tr);
-    if (Array.isArray(sh)) setShipments(sh);
+    if (Array.isArray(tr))    setTransports(tr);
+    if (Array.isArray(sh))    setShipments(sh);
+    if (Array.isArray(tms))   setTmsOrders(tms);
+    if (Array.isArray(trips)) setTmsTrips(trips);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -635,25 +763,34 @@ export default function DigitollStart() {
 
   function openNewShipment() {
     setShLines([defaultLine()]); setShTransportLink("decide_later");
-    setShTransportSearch(""); setShSelectedTransport(""); setShOwnTransport(emptyTrForm);
+    setShTransportSearch(""); setShSelectedTransport(""); setShSelectedTmsTripId(""); setShOwnTransport(emptyTrForm);
     setActive({ type: "new-shipment" });
   }
 
-  function openRow(row: RowType) {
+  async function openRow(row: RowType) {
     const s = row.data.status;
     if (row.kind === "transport") {
       const t = row.data as Transport;
-      if (["incomplete"].includes(s))         { setTrForm({ transport_mode: t.transport_mode ?? "Road", identifier: t.carrier ?? "", border_crossing: t.border_crossing ?? "", eta: toDatetimeLocal(t.eta) }); setTrLinkedShipments(t.shipments?.map(s => s.id) ?? []); setTrShipmentSearch(""); setActive({ type: "edit-transport", data: t }); }
-      else if (s === "missing_shipments")     { setTrLinkedShipments(t.shipments?.map(s => s.id) ?? []); setTrShipmentSearch(""); setActive({ type: "link-shipments", data: t }); }
-      else if (s === "awaiting_shipments")    { setActive({ type: "resolve-issues", data: t }); }
-      else if (s === "ready")                 { setSendDone(false); setActive({ type: "send-transport", data: t }); }
-      else if (s === "rejected")              { setActive({ type: "review-errors", data: t }); }
-      else                                    { setActive({ type: "view-transport", data: t }); }
+      // Ladda alltid senaste tmsOrders när transport-modal öppnas
+      const tmsRes = await fetch("/api/tms/orders");
+      if (tmsRes.ok) { const tmsData = await tmsRes.json(); if (Array.isArray(tmsData)) setTmsOrders(tmsData); }
+
+      const locked = ["sent","received","accepted","arrived","rejected"].includes(s);
+      if (locked) {
+        setActive({ type: "view-transport", data: t });
+      } else {
+        // Alla redigerbara statuses → samma edit-transport modal
+        setTrForm({ transport_mode: t.transport_mode ?? "Road", identifier: t.carrier ?? "", border_crossing: t.border_crossing ?? "", eta: toDatetimeLocal(t.eta) });
+        setTrLinkedShipments(t.tms_order_ids ?? []);
+        setTrShipmentSearch("");
+        if (s === "ready") { setSendDone(false); setActive({ type: "send-transport", data: t }); }
+        else { setActive({ type: "edit-transport", data: t }); }
+      }
     } else {
       const sh = row.data as Shipment;
       if (["incomplete","complete_unlinked"].includes(s)) {
         setShLines([defaultLine()]); setShTransportLink(sh.own_transport ? "own" : sh.transport_id ? "existing" : "decide_later");
-        setShTransportSearch(""); setShSelectedTransport(sh.transport_id ?? ""); setShOwnTransport(emptyTrForm);
+        setShTransportSearch(""); setShSelectedTransport(sh.transport_id ?? ""); setShSelectedTmsTripId(""); setShOwnTransport(emptyTrForm);
         setActive({ type: "edit-shipment", data: sh });
       }
       else if (s === "ready")                 { setSendDone(false); setActive({ type: "send-shipment", data: sh }); }
@@ -671,14 +808,19 @@ export default function DigitollStart() {
       : trLinkedShipments.length > 0
         ? "ready"
         : "missing_shipments";
-    const body = { reference: trForm.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: trForm.transport_mode, border_crossing: trForm.border_crossing, eta: trForm.eta, carrier: trForm.identifier, status: newStatus };
+    const body = { reference: trForm.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: trForm.transport_mode, border_crossing: trForm.border_crossing, eta: trForm.eta, carrier: trForm.identifier, status: newStatus, tms_order_ids: trLinkedShipments };
     const res = id
       ? await fetch(`/api/transports/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       : await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (res.ok) {
       const tr = await res.json();
-      await Promise.all(trLinkedShipments.map(sid => fetch(`/api/shipments/${sid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transport_id: tr.id }) })));
+      // Spara tms_order_ids separat om POST (id saknas vid skapande)
+      if (!id && trLinkedShipments.length > 0) {
+        await fetch(`/api/transports/${tr.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tms_order_ids: trLinkedShipments }) });
+      }
       close(); load();
+    } else {
+      console.error("saveTransport failed:", await res.text());
     }
     setSaving(false);
   }
@@ -707,7 +849,7 @@ export default function DigitollStart() {
     await fetch(`/api/transports/${transportId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newTransportStatus }),
+      body: JSON.stringify({ status: newTransportStatus, tms_order_ids: trLinkedShipments }),
     });
 
     setSaving(false); close(); load();
@@ -716,13 +858,37 @@ export default function DigitollStart() {
   async function saveShipment(id: string | null) {
     setSaving(true);
     let transportId = null;
+
     if (shTransportLink === "own") {
       const hasOwnTrFields = !!(shOwnTransport.transport_mode && shOwnTransport.border_crossing && shOwnTransport.eta);
       const ownTrStatus = hasOwnTrFields ? "missing_shipments" : "incomplete";
       const trRes = await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: shOwnTransport.identifier || `TR-${Date.now().toString().slice(-4)}`, transport_mode: shOwnTransport.transport_mode, border_crossing: shOwnTransport.border_crossing, eta: shOwnTransport.eta, status: ownTrStatus }) });
       if (trRes.ok) { const tr = await trRes.json(); transportId = tr.id; }
     } else if (shTransportLink === "existing") {
-      transportId = shSelectedTransport || null;
+      if (shSelectedTmsTripId) {
+        // Skapa transport från TMS Trip
+        const trip = tmsTrips.find(t => t.id === shSelectedTmsTripId);
+        if (trip) {
+          const trRes = await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+            reference: trip.reference,
+            transport_mode: "Road",
+            border_crossing: trip.to ?? null,
+            eta: trip.arrival ?? null,
+            carrier: trip.resource ?? null,
+            status: "missing_shipments",
+            source: "tms",
+            tms_trip_ref: trip.reference,
+          })});
+          if (trRes.ok) {
+            const tr = await trRes.json();
+            transportId = tr.id;
+            // Uppdatera TMS Trip med digitoll_id
+            await fetch(`/api/tms/trips/${trip.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ digitoll_id: tr.state_id }) });
+          }
+        }
+      } else {
+        transportId = shSelectedTransport || null;
+      }
     }
     // Shipment is ready if it has importer + receiver + product on at least one line
     const hasRequiredLines = shLines.some(l => l.importer && l.receiver && l.product_description);
@@ -795,12 +961,12 @@ export default function DigitollStart() {
 
   function nextAction(row: RowType): string {
     const s = row.data.status;
-    if (["incomplete","complete_unlinked"].includes(s)) return "Complete";
-    if (s === "missing_shipments")  return "Link shipments";
-    if (s === "awaiting_shipments") return "Resolve issues";
-    if (s === "ready")              return row.kind === "transport" ? "Send transport" : "Send shipment";
-    if (s === "rejected")           return "Review errors";
-    return "View";
+    const locked = ["sent","received","accepted","arrived"].includes(s);
+    if (locked) return "View";
+    if (s === "rejected") return "Review errors";
+    if (s === "ready" && row.kind === "transport") return "Send transport";
+    if (s === "ready" && row.kind === "shipment")  return "Send shipment";
+    return "Complete";
   }
 
   function TableSection({ rows, heading }: { rows: RowType[]; heading: string }) {
@@ -822,7 +988,7 @@ export default function DigitollStart() {
               <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 2, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
               <td style={{ padding: "9px 8px", fontWeight: 600, color: "#175CD3", fontSize: 12.5 }}>{d.state_id ?? "—"}</td>
               <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5 }}>{d.reference}</td>
-              <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{isTransport ? (d as Transport).shipments?.length ?? 0 : "—"}</td>
+              <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{isTransport ? (d as Transport).tms_order_ids?.length ?? 0 : "—"}</td>
               <td style={{ padding: "9px 8px", color: "#667085", fontSize: 11.5, whiteSpace: "nowrap" as const }}>{(d as Transport).ata ? "ATA " : "ETA "}{fmtDate((d as Transport).ata ?? d.eta)}</td>
               <td style={{ padding: "9px 8px", color: "#344054", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{d.actor ?? "—"}</td>
               <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{d.responsible ?? "—"}</td>
@@ -1037,10 +1203,12 @@ export default function DigitollStart() {
                       </div>
                     </td>
                     <td style={{ padding: "9px 14px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 20, borderRadius: 2, fontSize: 10, fontWeight: 700, background: isTransport ? "#EFF8FF" : "#ECFDF3", color: isTransport ? "#175CD3" : "#027A48" }}>{isTransport ? "TR" : "SH"}</span></td>
-                    <td style={{ padding: "9px 8px" }}><SourceBadge source={d.source} /></td>
+                    <td style={{ padding: "9px 8px", maxWidth: 80, overflow: "hidden" }}><SourceBadge source={d.source} /></td>
                     <td style={{ padding: "9px 8px", fontWeight: 600, color: "#175CD3", fontSize: 12.5 }}>{d.state_id ?? "—"}</td>
                     <td style={{ padding: "9px 8px", color: "#667085", fontSize: 12.5 }}>{d.reference}</td>
-                    <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{isTransport ? (d as Transport).shipments?.length ?? 0 : "—"}</td>
+                    <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>
+                      {isTransport ? ((d as Transport).tms_order_ids?.length ?? 0) : "—"}
+                    </td>
                     <td style={{ padding: "9px 8px", color: "#667085", fontSize: 11.5, whiteSpace: "nowrap" as const }}>{(d as Transport).ata ? "ATA " : "ETA "}{fmtDate((d as Transport).ata ?? d.eta)}</td>
                     <td style={{ padding: "9px 8px", color: "#344054", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{d.actor ?? "—"}</td>
                     <td style={{ padding: "9px 8px", color: "#98A2B3", fontSize: 12 }}>{d.responsible ?? "—"}</td>
@@ -1074,7 +1242,7 @@ export default function DigitollStart() {
           <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 3 }}>SHIPMENTS</div>
             <div style={{ fontSize: 12, color: "#667085", marginBottom: 10 }}>Link the shipments to this transport now or later</div>
-            <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
+            <TmsOrderPickerTable orders={tmsOrders} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
           </div>
           {trLinkedShipments.length > 0 && trForm.border_crossing && trForm.eta && (
             <button onClick={() => saveTransport(null)} disabled={saving} style={btnGreen}>{saving ? "Creating…" : "SUBMIT TRANSPORT"}</button>
@@ -1090,9 +1258,43 @@ export default function DigitollStart() {
           <div style={{ marginBottom: 4 }}><StatusPill status={activeTr?.status ?? ""} /></div>
           <TransportForm form={trForm} onChange={setTrForm} />
           <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "16px 18px" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 3 }}>SHIPMENTS</div>
-            <div style={{ fontSize: 12, color: "#667085", marginBottom: 10 }}>Link the shipments to this transport now or later</div>
-            <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", marginBottom: 3 }}>TMS ORDERS</div>
+            <div style={{ fontSize: 12, color: "#667085", marginBottom: 10 }}>Link TMS orders to this transport. You can add or remove them here.</div>
+
+            {/* Linked orders section */}
+            {trLinkedShipments.length > 0 && (
+              <div style={{ marginBottom: 10, border: "1px solid #B2CCFF", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ padding: "8px 12px", background: "#EFF8FF", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#175CD3" }}>Linked orders</span>
+                    <span style={{ background: "#175CD3", color: "#fff", borderRadius: 2, padding: "0 7px", fontSize: 11, fontWeight: 700 }}>{trLinkedShipments.length}</span>
+                  </div>
+                </div>
+                {trLinkedShipments.map(id => {
+                  const order = tmsOrders.find(o => o.id === id);
+                  return (
+                    <div key={id} style={{ display: "flex", alignItems: "center", padding: "8px 12px", borderTop: "1px solid #EFF8FF", background: "#fff" }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#175CD3", flex: 1 }}>{order?.reference ?? id.slice(0, 8) + "…"}</span>
+                      <span style={{ fontSize: 12, color: "#344054", flex: 2 }}>{order?.consignor ?? "—"}</span>
+                      <span style={{ fontSize: 12, color: "#667085", flex: 2 }}>{order?.consignee ?? "—"}</span>
+                      <button onClick={() => setTrLinkedShipments(p => p.filter(x => x !== id))}
+                        style={{ width: 24, height: 24, border: "none", background: "transparent", cursor: "pointer", color: "#98A2B3", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 2, flexShrink: 0 }}
+                        onMouseEnter={e => { (e.currentTarget.style.color = "#B42318"); (e.currentTarget.style.background = "#FEF3F2"); }}
+                        onMouseLeave={e => { (e.currentTarget.style.color = "#98A2B3"); (e.currentTarget.style.background = "transparent"); }}
+                      >✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <TmsOrderPickerTable
+              orders={tmsOrders.filter(o => !trLinkedShipments.includes(o.id))}
+              selected={[]}
+              onToggle={id => setTrLinkedShipments(p => [...p, id])}
+              search={trShipmentSearch}
+              onSearch={setTrShipmentSearch}
+            />
           </div>
           {trLinkedShipments.length > 0 && trForm.border_crossing && trForm.eta && (
             <button onClick={() => saveTransport(activeTr?.id ?? null)} disabled={saving} style={btnGreen}>{saving ? "Saving…" : "SUBMIT TRANSPORT"}</button>
@@ -1103,15 +1305,15 @@ export default function DigitollStart() {
 
       {/* ── LINK SHIPMENTS ────────────────────────────────────────────────── */}
       <Overlay open={isOpen("link-shipments")} onClose={close} wide>
-        <ModalHeader title={`Link Shipments — ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} subtitle="Select which shipments should be included in this transport" onClose={close} />
+        <ModalHeader title={`Link TMS Orders — ${activeTr?.state_id ?? activeTr?.reference ?? ""}`} subtitle="Select which TMS orders should be included in this transport" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ marginBottom: 4 }}><StatusPill status={activeTr?.status ?? ""} /></div>
-          <ShipmentPickerTable shipments={shipments} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
+          <TmsOrderPickerTable orders={tmsOrders} selected={trLinkedShipments} onToggle={id => setTrLinkedShipments(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])} search={trShipmentSearch} onSearch={setTrShipmentSearch} />
         </div>
         <ModalFooter>
           <button style={btnSec} onClick={close}>Cancel</button>
           <button style={{ ...btnPri, opacity: (saving || trLinkedShipments.length === 0) ? 0.6 : 1 }} onClick={() => linkShipmentsToTransport(activeTr?.id ?? "")} disabled={saving || trLinkedShipments.length === 0}>
-            {saving ? "Linking…" : `Link ${trLinkedShipments.length > 0 ? trLinkedShipments.length + " " : ""}shipment${trLinkedShipments.length !== 1 ? "s" : ""}`}
+            {saving ? "Linking…" : `Link ${trLinkedShipments.length > 0 ? trLinkedShipments.length + " " : ""}order${trLinkedShipments.length !== 1 ? "s" : ""}`}
           </button>
         </ModalFooter>
       </Overlay>
@@ -1164,7 +1366,7 @@ export default function DigitollStart() {
               <DetailField label="Transport mode"  value={activeTr?.transport_mode} />
               <DetailField label="ETA"             value={fmtDate(activeTr?.eta ?? null)} />
               <DetailField label="Carrier"         value={activeTr?.carrier} />
-              <DetailField label="Linked shipments" value={activeTr?.shipments?.length ?? 0} />
+              <DetailField label="Linked shipments" value={activeTr?.tms_order_ids?.length ?? 0} />
               <div style={{ marginTop: 16, background: "#EFF8FF", border: "1px solid #B2CCFF", borderRadius: 2, padding: "10px 14px", fontSize: 12.5, color: "#175CD3" }}>
                 This will submit the transport declaration to Norwegian Customs (Tolletaten).
               </div>
@@ -1174,10 +1376,12 @@ export default function DigitollStart() {
         {!sendDone && (
           <ModalFooter>
             <button style={btnSec} onClick={close}>Cancel</button>
-            <button style={btnSec} onClick={() => {
+            <button style={btnSec} onClick={async () => {
               if (activeTr) {
+                const tmsRes = await fetch("/api/tms/orders");
+                if (tmsRes.ok) { const d = await tmsRes.json(); if (Array.isArray(d)) setTmsOrders(d); }
                 setTrForm({ transport_mode: activeTr.transport_mode ?? "Road", identifier: activeTr.carrier ?? "", border_crossing: activeTr.border_crossing ?? "", eta: toDatetimeLocal(activeTr.eta) });
-                setTrLinkedShipments(activeTr.shipments?.map(s => s.id) ?? []);
+                setTrLinkedShipments(activeTr.tms_order_ids ?? []);
                 setTrShipmentSearch("");
                 setActive({ type: "edit-transport", data: activeTr });
               }
@@ -1193,7 +1397,7 @@ export default function DigitollStart() {
       <Overlay open={isOpen("new-shipment")} onClose={close} wide>
         <ModalHeader title="New Shipment (House)" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
-          <ShipmentFormBody lines={shLines} setLines={setShLines} transportLink={shTransportLink} setTransportLink={setShTransportLink} selectedTransport={shSelectedTransport} setSelectedTransport={setShSelectedTransport} transportSearch={shTransportSearch} setTransportSearch={setShTransportSearch} ownTransport={shOwnTransport} setOwnTransport={setShOwnTransport} transports={transports} saving={saving} onSave={() => saveShipment(null)} defaultLine={defaultLine} />
+          <ShipmentFormBody lines={shLines} setLines={setShLines} transportLink={shTransportLink} setTransportLink={setShTransportLink} selectedTransport={shSelectedTransport} setSelectedTransport={setShSelectedTransport} selectedTmsTripId={shSelectedTmsTripId} setSelectedTmsTripId={setShSelectedTmsTripId} transportSearch={shTransportSearch} setTransportSearch={setShTransportSearch} ownTransport={shOwnTransport} setOwnTransport={setShOwnTransport} transports={transports} tmsTrips={tmsTrips} saving={saving} onSave={() => saveShipment(null)} defaultLine={defaultLine} />
         </div>
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveShipment(null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
@@ -1203,7 +1407,7 @@ export default function DigitollStart() {
         <ModalHeader title={`Complete Shipment — ${activeSh?.state_id ?? activeSh?.reference ?? ""}`} subtitle="Fill in the missing fields to complete this shipment" onClose={close} />
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ marginBottom: 4 }}><StatusPill status={activeSh?.status ?? ""} /></div>
-          <ShipmentFormBody lines={shLines} setLines={setShLines} transportLink={shTransportLink} setTransportLink={setShTransportLink} selectedTransport={shSelectedTransport} setSelectedTransport={setShSelectedTransport} transportSearch={shTransportSearch} setTransportSearch={setShTransportSearch} ownTransport={shOwnTransport} setOwnTransport={setShOwnTransport} transports={transports} saving={saving} onSave={() => saveShipment(activeSh?.id ?? null)} defaultLine={defaultLine} />
+          <ShipmentFormBody lines={shLines} setLines={setShLines} transportLink={shTransportLink} setTransportLink={setShTransportLink} selectedTransport={shSelectedTransport} setSelectedTransport={setShSelectedTransport} selectedTmsTripId={shSelectedTmsTripId} setSelectedTmsTripId={setShSelectedTmsTripId} transportSearch={shTransportSearch} setTransportSearch={setShTransportSearch} ownTransport={shOwnTransport} setOwnTransport={setShOwnTransport} transports={transports} tmsTrips={tmsTrips} saving={saving} onSave={() => saveShipment(activeSh?.id ?? null)} defaultLine={defaultLine} />
         </div>
         <ModalFooter><button style={btnSec} onClick={close}>Cancel</button><button style={{ ...btnPri, opacity: saving ? 0.7 : 1 }} onClick={() => saveShipment(activeSh?.id ?? null)} disabled={saving}>{saving ? "Saving…" : "Save"}</button></ModalFooter>
       </Overlay>
@@ -1302,15 +1506,17 @@ export default function DigitollStart() {
           <DetailField label="Actor"            value={activeTr?.actor} />
           <DetailField label="Responsible"      value={activeTr?.responsible} />
           <DetailField label="Declaration"      value={<DeclBadge status={activeTr?.declaration_status ?? "none"} />} />
-          <DetailField label="Linked shipments" value={activeTr?.shipments?.length ?? 0} />
+          <DetailField label="Linked shipments" value={activeTr?.tms_order_ids?.length ?? 0} />
         </div>
         <ModalFooter>
           <button style={btnSec} onClick={close}>Close</button>
           {!["sent","received","accepted","arrived","rejected"].includes(activeTr?.status ?? "") && (
-            <button style={btnPri} onClick={() => {
+            <button style={btnPri} onClick={async () => {
               if (activeTr) {
+                const tmsRes = await fetch("/api/tms/orders");
+                if (tmsRes.ok) { const d = await tmsRes.json(); if (Array.isArray(d)) setTmsOrders(d); }
                 setTrForm({ transport_mode: activeTr.transport_mode ?? "Road", identifier: activeTr.carrier ?? "", border_crossing: activeTr.border_crossing ?? "", eta: toDatetimeLocal(activeTr.eta) });
-                setTrLinkedShipments(activeTr.shipments?.map(s => s.id) ?? []);
+                setTrLinkedShipments(activeTr.tms_order_ids ?? []);
                 setTrShipmentSearch("");
                 setActive({ type: "edit-transport", data: activeTr });
               }

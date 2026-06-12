@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       declaration_status: body.declaration_status ?? "none",
       source:           body.source ?? "manual",
       tms_trip_ref:     body.tms_trip_ref ?? null,
+      tms_order_ids:    body.tms_order_ids ?? [],
     })
     .select()
     .single();

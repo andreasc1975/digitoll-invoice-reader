@@ -11,16 +11,15 @@ const MaritechLogo = () => (
   </svg>
 );
 
-// ── Nav structure ─────────────────────────────────────────────────────────────
 const NAV_SECTIONS = [
   {
-    key: "tms",
-    label: "TMS",
-    icon: "local_shipping",
-    href: "/tms/orders",
+    key: "docreader",
+    label: "Document Reader",
+    icon: "description",
+    href: "/digitoll/incoming",
     items: [
-      { href: "/tms/orders", label: "Orders" },
-      { href: "/tms/trips",  label: "Trips" },
+      { href: "/digitoll/incoming", label: "Incoming" },
+      { href: "/digitoll/settings", label: "Settings" },
     ],
   },
   {
@@ -38,13 +37,13 @@ const NAV_SECTIONS = [
     items: [],
   },
   {
-    key: "docreader",
-    label: "Document Reader",
-    icon: "description",
-    href: "/digitoll/incoming",
+    key: "tms",
+    label: "TMS",
+    icon: "local_shipping",
+    href: "/tms/orders",
     items: [
-      { href: "/digitoll/incoming", label: "Incoming" },
-      { href: "/digitoll/settings", label: "Settings" },
+      { href: "/tms/orders", label: "Orders" },
+      { href: "/tms/trips",  label: "Trips" },
     ],
   },
 ];
@@ -63,7 +62,6 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ tms: true, docreader: true });
 
-  // Auto-expandera aktiv sektion när path ändras
   useEffect(() => {
     NAV_SECTIONS.forEach(section => {
       const active = path === section.href || section.items.some(item => path === item.href || path.startsWith(item.href + "/"));
@@ -80,7 +78,6 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   function isActive(href: string) {
     if (href === "/digitoll") return path === "/digitoll";
     if (href === "/customs")  return path === "/customs";
-    // För sektioner med sub-items: matcha exakt eller med trailing slash
     return path === href || path.startsWith(href + "/");
   }
 
@@ -126,14 +123,13 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
 
         {/* Nav sections */}
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 2px" }}>
-          {NAV_SECTIONS.map((section, si) => {
+          {NAV_SECTIONS.map((section) => {
             const sectionCollapsed = collapsedSections[section.key] ?? false;
             const hasItems = section.items.length > 0;
             const sectionActive = isActive(section.href) || section.items.some(item => isActive(item.href));
 
             return (
               <div key={section.key} style={{ marginBottom: 6 }}>
-                {/* Section header */}
                 <div className={sectionActive ? "" : "nav-section-header"} style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", height: 37, padding: sidebarCollapsed ? "0" : "0 14px", background: sectionActive ? "#DFE5EB" : "transparent", borderRadius: "2px" }}>
                   {sidebarCollapsed ? (
                     <Link href={section.href} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", textDecoration: "none" }}>
@@ -156,7 +152,6 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
                   )}
                 </div>
 
-                {/* Nav items — bara för aktiv sektion */}
                 {hasItems && !sectionCollapsed && !sidebarCollapsed && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 1 }}>
                     {section.items.map((item, idx) => {
@@ -177,7 +172,6 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
                   </div>
                 )}
 
-                {/* Minimized bullets — bara för aktiv sektion */}
                 {hasItems && sidebarCollapsed && sectionActive && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 1 }}>
                     {section.items.map((item, idx) => {
@@ -252,10 +246,11 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
         </div>
 
         <style>{`
-        .nav-section-header:hover { background: #F2F4F7 !important; border-radius: 2px; }
-        .nav-toggle-icon:hover { color: #003160 !important; }
-      `}</style>
-      {/* Page content */}
+          .nav-section-header:hover { background: #F2F4F7 !important; border-radius: 2px; }
+          .nav-toggle-icon:hover { color: #003160 !important; }
+        `}</style>
+
+        {/* Page content */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
           {children}
         </div>
