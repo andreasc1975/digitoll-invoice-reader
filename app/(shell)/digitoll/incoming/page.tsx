@@ -48,69 +48,42 @@ const DIGITOLL_FIELDS = [
 ];
 
 const SAD_FIELDS = [
-  // Parties
-  { key: "sad_2",   label: "Box 2 — Consignor / Exporter",                      required: true,  section: "PARTIES",      placeholder: "Name, address, country" },
-  { key: "sad_8",   label: "Box 8 — Consignee / Importer",                      required: true,  section: "PARTIES",      placeholder: "Name, address, country" },
-  { key: "sad_9",   label: "Box 9 — Person Responsible (Financial)",             required: false, section: "PARTIES",      placeholder: "Name, address" },
-  { key: "sad_14",  label: "Box 14 — Declarant / Representative",                required: true,  section: "PARTIES",      placeholder: "Name, address, EORI" },
-  { key: "sad_50",  label: "Box 50 — Principal / Authorized Signatory",          required: true,  section: "PARTIES",      placeholder: "Name, place, date" },
-  // Declaration
-  { key: "sad_1",   label: "Box 1 — Declaration Type",                           required: true,  section: "DECLARATION",  placeholder: "e.g. IM" },
-  { key: "sad_3",   label: "Box 3 — Forms",                                      required: false, section: "DECLARATION",  placeholder: "1/1" },
-  { key: "sad_4",   label: "Box 4 — Loading Lists",                              required: false, section: "DECLARATION",  placeholder: "e.g. 1" },
-  { key: "sad_5",   label: "Box 5 — Items",                                      required: true,  section: "DECLARATION",  placeholder: "e.g. 3" },
-  { key: "sad_6",   label: "Box 6 — Total Packages",                             required: true,  section: "DECLARATION",  placeholder: "e.g. 10" },
-  { key: "sad_7",   label: "Box 7 — Reference Number",                           required: false, section: "DECLARATION",  placeholder: "e.g. REF-2026-001" },
-  { key: "sad_54",  label: "Box 54 — Place, Date, Signature",                    required: true,  section: "DECLARATION",  placeholder: "e.g. Stockholm, 2026-05-27" },
-  // Countries
-  { key: "sad_10",  label: "Box 10 — Last Country",                              required: false, section: "COUNTRIES",    placeholder: "e.g. DE" },
-  { key: "sad_11",  label: "Box 11 — Trading Country",                           required: false, section: "COUNTRIES",    placeholder: "e.g. SE" },
-  { key: "sad_15",  label: "Box 15 — Country of Dispatch / Export",              required: true,  section: "COUNTRIES",    placeholder: "e.g. SE" },
-  { key: "sad_15a", label: "Box 15a — Country of Dispatch Code",                 required: false, section: "COUNTRIES",    placeholder: "e.g. SE" },
-  { key: "sad_16",  label: "Box 16 — Country of Origin",                         required: true,  section: "COUNTRIES",    placeholder: "e.g. SE" },
-  { key: "sad_17",  label: "Box 17 — Country of Destination",                    required: true,  section: "COUNTRIES",    placeholder: "e.g. FI" },
-  { key: "sad_17a", label: "Box 17a — Destination Country Code",                 required: false, section: "COUNTRIES",    placeholder: "e.g. FI" },
-  { key: "sad_34",  label: "Box 34 — Country Origin Code",                       required: true,  section: "COUNTRIES",    placeholder: "e.g. SE" },
-  { key: "sad_34a", label: "Box 34a — Country of Origin (Text)",                 required: false, section: "COUNTRIES",    placeholder: "e.g. Sweden" },
-  // Transport
-  { key: "sad_18",  label: "Box 18 — Identity of Means of Transport at Departure", required: true, section: "TRANSPORT",   placeholder: "e.g. ABC 123" },
-  { key: "sad_19",  label: "Box 19 — Container",                                 required: false, section: "TRANSPORT",    placeholder: "0 or 1" },
-  { key: "sad_20",  label: "Box 20 — Delivery Terms",                            required: true,  section: "TRANSPORT",    placeholder: "e.g. DAP Helsinki" },
-  { key: "sad_21",  label: "Box 21 — Identity of Active Means of Transport Crossing Border", required: false, section: "TRANSPORT", placeholder: "e.g. vessel name" },
-  { key: "sad_25",  label: "Box 25 — Mode of Transport at Border",               required: true,  section: "TRANSPORT",    placeholder: "1=Sea 2=Rail 3=Road 4=Air" },
-  { key: "sad_26",  label: "Box 26 — Inland Mode of Transport",                  required: false, section: "TRANSPORT",    placeholder: "e.g. 3" },
-  { key: "sad_27",  label: "Box 27 — Place of Loading / Unloading",              required: false, section: "TRANSPORT",    placeholder: "e.g. Port of Helsinki" },
-  { key: "sad_29",  label: "Box 29 — Office of Exit",                            required: false, section: "TRANSPORT",    placeholder: "e.g. SE000100" },
-  { key: "sad_51",  label: "Box 51 — Offices of Transit and Country",            required: false, section: "TRANSPORT",    placeholder: "" },
-  { key: "sad_53",  label: "Box 53 — Office of Destination and Country",         required: false, section: "TRANSPORT",    placeholder: "e.g. FI000100" },
-  // Goods
-  { key: "sad_30",  label: "Box 30 — Location of Goods",                         required: true,  section: "GOODS",        placeholder: "e.g. warehouse address" },
-  { key: "sad_31",  label: "Box 31 — Packages and Description of Goods",         required: true,  section: "GOODS",        placeholder: "e.g. 10 cartons - Industrial components" },
-  { key: "sad_32",  label: "Box 32 — Item Number",                               required: false, section: "GOODS",        placeholder: "e.g. 1" },
-  { key: "sad_33",  label: "Box 33 — Commodity Code",                            required: true,  section: "GOODS",        placeholder: "e.g. 8471 30 00" },
-  { key: "sad_35",  label: "Box 35 — Gross Mass (kg)",                           required: true,  section: "GOODS",        placeholder: "e.g. 158.0" },
-  { key: "sad_38",  label: "Box 38 — Net Mass (kg)",                             required: true,  section: "GOODS",        placeholder: "e.g. 145.5" },
-  { key: "sad_41",  label: "Box 41 — Supplementary Units",                       required: false, section: "GOODS",        placeholder: "e.g. 101 pieces" },
-  // Customs & Financials
-  { key: "sad_12",  label: "Box 12 — Value Details",                             required: false, section: "CUSTOMS",      placeholder: "e.g. EUR" },
-  { key: "sad_22",  label: "Box 22 — Currency and Total Invoice Amount",          required: true,  section: "CUSTOMS",      placeholder: "EUR 12500.00" },
-  { key: "sad_23",  label: "Box 23 — Exchange Rate",                             required: false, section: "CUSTOMS",      placeholder: "e.g. 1.00" },
-  { key: "sad_24",  label: "Box 24 — Nature of Transaction",                     required: true,  section: "CUSTOMS",      placeholder: "e.g. 11" },
-  { key: "sad_36",  label: "Box 36 — Preference",                                required: false, section: "CUSTOMS",      placeholder: "e.g. 100" },
-  { key: "sad_37",  label: "Box 37 — Procedure",                                 required: true,  section: "CUSTOMS",      placeholder: "e.g. 4000" },
-  { key: "sad_39",  label: "Box 39 — Quota",                                     required: false, section: "CUSTOMS",      placeholder: "" },
-  { key: "sad_40",  label: "Box 40 — Summary Declaration / Previous Document",   required: false, section: "CUSTOMS",      placeholder: "e.g. MRN number" },
-  { key: "sad_42",  label: "Box 42 — Item Price",                                required: true,  section: "CUSTOMS",      placeholder: "e.g. 12500.00" },
-  { key: "sad_43",  label: "Box 43 — Valuation Method",                          required: false, section: "CUSTOMS",      placeholder: "e.g. 1" },
-  { key: "sad_44",  label: "Box 44 — Additional Information / Documents",         required: false, section: "CUSTOMS",      placeholder: "e.g. licence no." },
-  { key: "sad_45",  label: "Box 45 — Adjustment",                                required: false, section: "CUSTOMS",      placeholder: "e.g. 0.00" },
-  { key: "sad_46",  label: "Box 46 — Statistical Value",                         required: true,  section: "CUSTOMS",      placeholder: "e.g. 12500.00" },
-  { key: "sad_47",  label: "Box 47 — Calculation of Taxes",                      required: true,  section: "CUSTOMS",      placeholder: "e.g. A50 / 12500 / 0% / 0.00 / E" },
-  { key: "sad_48",  label: "Box 48 — Deferred Payment",                          required: false, section: "CUSTOMS",      placeholder: "" },
-  { key: "sad_49",  label: "Box 49 — Identification of Warehouse",               required: false, section: "CUSTOMS",      placeholder: "e.g. SE warehouse ID" },
-  { key: "sad_52",  label: "Box 52 — Guarantee",                                 required: false, section: "CUSTOMS",      placeholder: "e.g. 1 / GRN123" },
-  { key: "sad_13",  label: "Box 13 — CAP",                                       required: false, section: "CUSTOMS",      placeholder: "" },
-  { key: "sad_28",  label: "Box 28 — Financial and Banking Data",                required: false, section: "CUSTOMS",      placeholder: "e.g. bank ref" },
+  // A — Parties
+  { key: "sad_exp_name",           label: "Exporter name",              required: true,  section: "A — PARTIES",    placeholder: "Legal name of exporting company" },
+  { key: "sad_exp_address",        label: "Exporter address",           required: true,  section: "A — PARTIES",    placeholder: "Full street address" },
+  { key: "sad_exp_country",        label: "Exporter country",           required: true,  section: "A — PARTIES",    placeholder: "e.g. SE" },
+  { key: "sad_exp_org_no",         label: "Exporter org. no.",          required: false, section: "A — PARTIES",    placeholder: "Organisation/VAT number" },
+  { key: "sad_imp_name",           label: "Importer name",              required: true,  section: "A — PARTIES",    placeholder: "Legal name of importing company" },
+  { key: "sad_imp_address",        label: "Importer address",           required: true,  section: "A — PARTIES",    placeholder: "Full street address in Norway" },
+  { key: "sad_imp_org_no",         label: "Importer org. no.",          required: true,  section: "A — PARTIES",    placeholder: "Norwegian organisation number (9 digits)" },
+  { key: "sad_imp_vat_no",         label: "Importer VAT no.",           required: true,  section: "A — PARTIES",    placeholder: "MVA + 9 digits" },
+  { key: "sad_declarant_name",     label: "Declarant / agent name",     required: false, section: "A — PARTIES",    placeholder: "Customs agent name" },
+  { key: "sad_declarant_org_no",   label: "Declarant org. no.",         required: false, section: "A — PARTIES",    placeholder: "Customs agent org. number" },
+  // B — References
+  { key: "sad_declaration_ref",    label: "Declaration reference",      required: false, section: "B — REFERENCES", placeholder: "Declarant's own reference" },
+  { key: "sad_invoice_number",     label: "Invoice number",             required: true,  section: "B — REFERENCES", placeholder: "Seller's invoice reference" },
+  { key: "sad_invoice_date",       label: "Invoice date",               required: true,  section: "B — REFERENCES", placeholder: "e.g. 2026-06-10" },
+  { key: "sad_prev_document",      label: "Previous document",          required: false, section: "B — REFERENCES", placeholder: "Transit MRN or preceding document" },
+  // C — Transport
+  { key: "sad_incoterm",           label: "Incoterm",                   required: true,  section: "C — TRANSPORT",  placeholder: "e.g. DAP, FOB, CIF" },
+  { key: "sad_incoterm_place",     label: "Incoterm place",             required: true,  section: "C — TRANSPORT",  placeholder: "Named place" },
+  { key: "sad_transport_mode_border", label: "Transport mode at border",required: true,  section: "C — TRANSPORT",  placeholder: "Road / Sea / Air / Rail" },
+  { key: "sad_transport_ref_border",  label: "Transport reference",     required: true,  section: "C — TRANSPORT",  placeholder: "Vehicle reg., IMO, flight no." },
+  { key: "sad_border_crossing",    label: "Border crossing",            required: true,  section: "C — TRANSPORT",  placeholder: "e.g. Svinesund" },
+  { key: "sad_country_dispatch",   label: "Country of dispatch",        required: true,  section: "C — TRANSPORT",  placeholder: "e.g. SE" },
+  { key: "sad_country_destination",label: "Country of destination",     required: true,  section: "C — TRANSPORT",  placeholder: "e.g. NO" },
+  // D — Goods
+  { key: "sad_goods_description",  label: "Goods description",          required: true,  section: "D — GOODS",      placeholder: "Plain text description" },
+  { key: "sad_hs_code",            label: "HS / commodity code",        required: true,  section: "D — GOODS",      placeholder: "Min. 6 digits" },
+  { key: "sad_country_origin",     label: "Country of origin",          required: true,  section: "D — GOODS",      placeholder: "e.g. DE" },
+  { key: "sad_gross_weight",       label: "Gross weight (kg)",          required: true,  section: "D — GOODS",      placeholder: "Total incl. packaging" },
+  { key: "sad_net_weight",         label: "Net weight (kg)",            required: true,  section: "D — GOODS",      placeholder: "Excl. packaging" },
+  { key: "sad_packages",           label: "Number of packages",         required: true,  section: "D — GOODS",      placeholder: "Total colli" },
+  // E — Value & Duties
+  { key: "sad_invoice_value",      label: "Invoice value",              required: true,  section: "E — VALUE",      placeholder: "Total invoice value" },
+  { key: "sad_currency",           label: "Currency",                   required: true,  section: "E — VALUE",      placeholder: "ISO 4217 e.g. EUR" },
+  { key: "sad_exchange_rate",      label: "Exchange rate",              required: false, section: "E — VALUE",      placeholder: "To NOK" },
+  { key: "sad_statistical_value",  label: "Statistical value (NOK)",    required: true,  section: "E — VALUE",      placeholder: "Basis for VAT" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -202,6 +175,49 @@ function DocumentNames({ names }: { names: string[] }) {
       )}
     </div>
   );
+}
+
+// ── Mapping: extracted field keys → SAD field keys ───────────────────────────
+const TO_SAD: Record<string, string> = {
+  exp_name:           "sad_exp_name",
+  exp_address:        "sad_exp_address",
+  exp_country:        "sad_exp_country",
+  exp_org_no:         "sad_exp_org_no",
+  imp_name:           "sad_imp_name",
+  imp_address:        "sad_imp_address",
+  imp_org_no:         "sad_imp_org_no",
+  imp_id:             "sad_imp_org_no",
+  imp_vat_no:         "sad_imp_vat_no",
+  totalValue:         "sad_invoice_value",
+  currency:           "sad_currency",
+  customsValue:       "sad_statistical_value",
+  incoterm:           "sad_incoterm",
+  incotermPlace:      "sad_incoterm_place",
+  destinationCountry: "sad_country_destination",
+  modeOfTransport:    "sad_transport_mode_border",
+  transportRef:       "sad_transport_ref_border",
+  borderCrossing:     "sad_border_crossing",
+  hsCode:             "sad_hs_code",
+  originCountry:      "sad_country_origin",
+  countryOfOrigin:    "sad_country_origin",
+  totalGrossWeight:   "sad_gross_weight",
+  totalNetWeight:     "sad_net_weight",
+  numberOfPackages:   "sad_packages",
+  invoiceDate:        "sad_invoice_date",
+  invoiceNumber:      "sad_invoice_number",
+  exchangeRate:       "sad_exchange_rate",
+};
+
+function fieldsToLocalMap(fields: { field_key: string; field_value: string | null; confidence: string | null; source: string }[]) {
+  const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
+  for (const f of fields) {
+    if (!f.field_value) continue;
+    const val = { value: f.field_value, source: f.source, confidence: f.confidence };
+    map[f.field_key] = val;
+    const sadKey = TO_SAD[f.field_key];
+    if (sadKey) map[sadKey] = val;
+  }
+  return map;
 }
 
 export default function IncomingDocuments() {
@@ -354,10 +370,7 @@ export default function IncomingDocuments() {
   useEffect(() => {
     if (!activeInvoice) return;
     const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
-    activeInvoice.invoice_fields.forEach(f => {
-      map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence };
-    });
-    setLocalFields(map);
+    setLocalFields(fieldsToLocalMap(activeInvoice.invoice_fields));
 
     setFileUrl(null);
     fetch(`/api/invoices/${activeInvoice.id}/file`).then(async res => {
@@ -432,8 +445,7 @@ export default function IncomingDocuments() {
         if (updated) {
           setActiveInvoice(updated);
           const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
-          updated.invoice_fields.forEach(f => { map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence }; });
-          setLocalFields(map);
+          setLocalFields(fieldsToLocalMap(updated.invoice_fields));
         }
       }
     }
@@ -452,7 +464,11 @@ export default function IncomingDocuments() {
       if (!inv) continue;
       const fields: Record<string, { value: string; confidence: string | null }> = {};
       inv.invoice_fields.forEach(f => {
-        if (f.field_value) fields[f.field_key] = { value: f.field_value, confidence: f.confidence };
+        if (f.field_value) {
+          fields[f.field_key] = { value: f.field_value, confidence: f.confidence };
+          const sk = TO_SAD[f.field_key];
+          if (sk) fields[sk] = { value: f.field_value, confidence: f.confidence };
+        }
       });
       docFields.push({ docName: updatedUploads[i].name, docIdx: i, fields });
     }
@@ -538,8 +554,11 @@ export default function IncomingDocuments() {
 
     // Sätt initialFields
     const map: Record<string, string> = {};
-    inv.invoice_fields.forEach(f => { if (f.field_value) map[f.field_key] = f.field_value; });
-    setInitialFields(map);
+    const initMap: Record<string, string> = {};
+    inv.invoice_fields.forEach(f => { if (f.field_value) initMap[f.field_key] = f.field_value; });
+    // Inkludera SAD-mappade nycklar i initialFields
+    for (const [k, v] of Object.entries(initMap)) { const sk = TO_SAD[k]; if (sk) initMap[sk] = v; }
+    setInitialFields(initMap);
 
     // Om sessionen har flera dokument — ladda alla
     if (inv.session_id) {
@@ -612,8 +631,7 @@ export default function IncomingDocuments() {
       if (inv) {
         setActiveInvoice(inv);
         const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
-        inv.invoice_fields.forEach(field => { map[field.field_key] = { value: field.field_value ?? "", source: field.source, confidence: field.confidence }; });
-        setLocalFields(map);
+        setLocalFields(fieldsToLocalMap(inv.invoice_fields));
       }
     }
   }
@@ -665,6 +683,41 @@ export default function IncomingDocuments() {
         border_crossing: get("sad_border_crossing"),
         status:          "submitted",
         digitoll_id:     null,
+        // All SAD fields
+        sad_exp_name:              get("sad_exp_name"),
+        sad_exp_address:           get("sad_exp_address"),
+        sad_exp_country:           get("sad_exp_country"),
+        sad_exp_org_no:            get("sad_exp_org_no"),
+        sad_imp_name:              get("sad_imp_name"),
+        sad_imp_address:           get("sad_imp_address"),
+        sad_imp_org_no:            get("sad_imp_org_no"),
+        sad_imp_vat_no:            get("sad_imp_vat_no"),
+        sad_declarant_name:        get("sad_declarant_name"),
+        sad_declarant_org_no:      get("sad_declarant_org_no"),
+        sad_declaration_ref:       get("sad_declaration_ref"),
+        sad_invoice_number:        get("sad_invoice_number"),
+        sad_invoice_date:          get("sad_invoice_date"),
+        sad_prev_document:         get("sad_prev_document"),
+        sad_incoterm:              get("sad_incoterm"),
+        sad_incoterm_place:        get("sad_incoterm_place"),
+        sad_transport_mode_border: get("sad_transport_mode_border"),
+        sad_transport_ref_border:  get("sad_transport_ref_border"),
+        sad_border_crossing:       get("sad_border_crossing"),
+        sad_country_dispatch:      get("sad_country_dispatch"),
+        sad_country_destination:   get("sad_country_destination"),
+        sad_goods_description:     get("sad_goods_description"),
+        sad_hs_code:               get("sad_hs_code"),
+        sad_country_origin:        get("sad_country_origin"),
+        sad_gross_weight:          get("sad_gross_weight"),
+        sad_net_weight:            get("sad_net_weight"),
+        sad_packages:              get("sad_packages"),
+        sad_invoice_value:         get("sad_invoice_value"),
+        sad_currency:              get("sad_currency"),
+        sad_exchange_rate:         get("sad_exchange_rate"),
+        sad_statistical_value:     get("sad_statistical_value"),
+        sad_customs_duty_rate:     get("sad_customs_duty_rate"),
+        sad_customs_duty_amount:   get("sad_customs_duty_amount"),
+        sad_vat_basis:             get("sad_vat_basis"),
       }),
     });
     if (res.ok) {
@@ -702,7 +755,7 @@ export default function IncomingDocuments() {
       digitollId = transport.state_id ?? transport.reference ?? transportRef;
     }
 
-    // Step 2: Create Customs declaration
+    // Step 2: Create Customs declaration with all SAD fields
     const cmsRef = `CMS-${Date.now().toString().slice(-6)}`;
     const customsRes = await fetch("/api/customs", {
       method: "POST",
@@ -714,6 +767,40 @@ export default function IncomingDocuments() {
         border_crossing: get("sad_border_crossing"),
         status:          "submitted",
         digitoll_id:     digitollId,
+        sad_exp_name:              get("sad_exp_name"),
+        sad_exp_address:           get("sad_exp_address"),
+        sad_exp_country:           get("sad_exp_country"),
+        sad_exp_org_no:            get("sad_exp_org_no"),
+        sad_imp_name:              get("sad_imp_name"),
+        sad_imp_address:           get("sad_imp_address"),
+        sad_imp_org_no:            get("sad_imp_org_no"),
+        sad_imp_vat_no:            get("sad_imp_vat_no"),
+        sad_declarant_name:        get("sad_declarant_name"),
+        sad_declarant_org_no:      get("sad_declarant_org_no"),
+        sad_declaration_ref:       get("sad_declaration_ref"),
+        sad_invoice_number:        get("sad_invoice_number"),
+        sad_invoice_date:          get("sad_invoice_date"),
+        sad_prev_document:         get("sad_prev_document"),
+        sad_incoterm:              get("sad_incoterm"),
+        sad_incoterm_place:        get("sad_incoterm_place"),
+        sad_transport_mode_border: get("sad_transport_mode_border"),
+        sad_transport_ref_border:  get("sad_transport_ref_border"),
+        sad_border_crossing:       get("sad_border_crossing"),
+        sad_country_dispatch:      get("sad_country_dispatch"),
+        sad_country_destination:   get("sad_country_destination"),
+        sad_goods_description:     get("sad_goods_description"),
+        sad_hs_code:               get("sad_hs_code"),
+        sad_country_origin:        get("sad_country_origin"),
+        sad_gross_weight:          get("sad_gross_weight"),
+        sad_net_weight:            get("sad_net_weight"),
+        sad_packages:              get("sad_packages"),
+        sad_invoice_value:         get("sad_invoice_value"),
+        sad_currency:              get("sad_currency"),
+        sad_exchange_rate:         get("sad_exchange_rate"),
+        sad_statistical_value:     get("sad_statistical_value"),
+        sad_customs_duty_rate:     get("sad_customs_duty_rate"),
+        sad_customs_duty_amount:   get("sad_customs_duty_amount"),
+        sad_vat_basis:             get("sad_vat_basis"),
       }),
     });
 
