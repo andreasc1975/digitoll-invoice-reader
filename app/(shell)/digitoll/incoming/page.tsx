@@ -672,6 +672,8 @@ export default function IncomingDocuments() {
     if (!activeInvoice) return;
     setSubmitting(true);
     const get = (k: string) => localFields[k]?.value ?? "";
+    console.log("submitSADOnly — localFields keys:", Object.keys(localFields));
+    console.log("sad_exp_name:", get("sad_exp_name"), "sad_imp_name:", get("sad_imp_name"));
     const cmsRef = `CMS-${Date.now().toString().slice(-6)}`;
     const res = await fetch("/api/customs", {
       method: "POST",
@@ -1306,16 +1308,13 @@ export default function IncomingDocuments() {
                 <div style={{ marginBottom: 16 }}>
                   <ItemsTable invoiceId={activeInvoice.id} onAggregated={async () => {
                     await load();
-                    // Ladda om fälten för aktiv invoice så aggregerade värden syns direkt
                     const res = await fetch("/api/invoices");
                     if (res.ok) {
                       const all: Invoice[] = await res.json();
                       const updated = all.find(i => i.id === activeInvoice.id);
                       if (updated) {
                         setActiveInvoice(updated);
-                        const map: Record<string, { value: string; source: string; confidence: string | null }> = {};
-                        updated.invoice_fields.forEach(f => { map[f.field_key] = { value: f.field_value ?? "", source: f.source, confidence: f.confidence }; });
-                        setLocalFields(map);
+                        setLocalFields(fieldsToLocalMap(updated.invoice_fields));
                       }
                     }
                   }} />
