@@ -169,6 +169,32 @@ export default function TMSOrders() {
     load();
   }
 
+  async function sendToDigitoll(order: typeof orders[number]) {
+    const res = await fetch("/api/houses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exporter:          order.consignor,
+        importer:          order.consignee,
+        goods_description: order.service_code ?? null,
+        gross_weight:      order.gross_weight ? String(order.gross_weight) : null,
+        packages:          order.packages ? String(order.packages) : null,
+        customs_status:    order.customs_status === "Cleared" ? "cleared" : "pending",
+        tms_order_id:      order.id,
+        source:            "tms",
+      }),
+    });
+    if (res.ok) {
+      const house = await res.json();
+      await fetch(`/api/tms/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ digitoll_id: house.state_id }),
+      });
+      load();
+    }
+  }
+
   async function toggleTripLink(orderId: string, tripId: string) {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
@@ -385,7 +411,9 @@ export default function TMSOrders() {
                   <td style={{ padding: "9px 12px" }}>
                     {order.digitoll_id
                       ? <span style={{ fontSize: 11.5, fontWeight: 600, color: "#027A48" }}>{order.digitoll_id}</span>
-                      : <span style={{ fontSize: 11.5, color: "#98A2B3" }}>—</span>
+                      : <button onClick={() => sendToDigitoll(order)} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 2, background: "transparent", color: "#446BF9", fontSize: 11.5, fontWeight: 600, border: "1px solid #446BF9", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
+                          → Digitoll
+                        </button>
                     }
                   </td>
                   <td style={{ padding: "9px 12px" }}>

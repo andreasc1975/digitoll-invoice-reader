@@ -734,32 +734,82 @@ export default function IncomingDocuments() {
     setSubmitting(true);
     const get = (k: string) => localFields[k]?.value ?? "";
 
-    // Step 1: Create Digitoll transport using mapped SAD fields
-    const transportRef = `T-${1000 + Math.floor(Math.random() * 9000)}`;
+    // Step 1: Create Transport
     const transportRes = await fetch("/api/transports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        reference:      transportRef,
-        border_crossing: get("sad_border_crossing") || get("sad_country_destination"),
-        transport_mode: get("sad_transport_mode_border") || "Road",
-        carrier:        get("sad_transport_ref_border"),
-        actor:          get("sad_exp_name"),
-        status:         "complete_unlinked",
-        declaration_status: "none",
+        transport_mode:  get("sad_transport_mode_border") || "Road",
+        carrier:         get("sad_transport_ref_border"),
+        border_crossing: get("sad_border_crossing"),
+        status:          "incomplete",
+        source:          "document_reader",
+      }),
+    });
+    let transportId: string | null = null;
+    let transportStateId: string | null = null;
+    if (transportRes.ok) {
+      const t = await transportRes.json();
+      transportId = t.id;
+      transportStateId = t.state_id;
+    }
+
+    // Step 2: Create Master linked to Transport
+    const masterRes = await fetch("/api/masters", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transport_id:   transportId,
+        consignor:      get("sad_exp_name"),
+        consignee:      get("sad_imp_name"),
+        incoterm:       get("sad_incoterm"),
+        incoterm_place: get("sad_incoterm_place"),
+        invoice_number: get("sad_invoice_number"),
+        invoice_date:   get("sad_invoice_date"),
+        invoice_value:  get("sad_invoice_value"),
+        currency:       get("sad_currency"),
+        gross_weight:   get("sad_gross_weight"),
+        net_weight:     get("sad_net_weight"),
+        status:         "incomplete",
         source:         "document_reader",
       }),
     });
-
-    let digitollId: string | null = null;
-    if (transportRes.ok) {
-      const transport = await transportRes.json();
-      digitollId = transport.state_id ?? transport.reference ?? transportRef;
+    let masterId: string | null = null;
+    let masterStateId: string | null = null;
+    if (masterRes.ok) {
+      const m = await masterRes.json();
+      masterId = m.id;
+      masterStateId = m.state_id;
     }
 
-    // Step 2: Create Customs declaration with all SAD fields
+    // Step 3: Create House linked to Master
+    const houseRes = await fetch("/api/houses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        master_id:         masterId,
+        exporter:          get("sad_exp_name"),
+        importer:          get("sad_imp_name"),
+        importer_org_no:   get("sad_imp_org_no"),
+        goods_description: get("sad_goods_description"),
+        hs_code:           get("sad_hs_code"),
+        gross_weight:      get("sad_gross_weight"),
+        net_weight:        get("sad_net_weight"),
+        packages:          get("sad_packages"),
+        country_origin:    get("sad_country_origin"),
+        customs_status:    "pending",
+        source:            "document_reader",
+      }),
+    });
+    let houseStateId: string | null = null;
+    if (houseRes.ok) {
+      const h = await houseRes.json();
+      houseStateId = h.state_id;
+    }
+
+    // Step 4: Create Customs declaration with all SAD fields
     const cmsRef = `CMS-${Date.now().toString().slice(-6)}`;
-    const customsRes = await fetch("/api/customs", {
+    await fetch("/api/customs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -768,7 +818,7 @@ export default function IncomingDocuments() {
         consignee:       get("sad_imp_name"),
         border_crossing: get("sad_border_crossing"),
         status:          "submitted",
-        digitoll_id:     digitollId,
+        digitoll_id:     transportStateId,
         sad_exp_name:              get("sad_exp_name"),
         sad_exp_address:           get("sad_exp_address"),
         sad_exp_country:           get("sad_exp_country"),
@@ -806,22 +856,18 @@ export default function IncomingDocuments() {
       }),
     });
 
-    // Step 3: Update Digitoll record with CMS ref if both succeeded
-    if (customsRes.ok && digitollId) {
-      // Customs record gets digitoll_id, Digitoll record already has its ID
-    }
-
-    // Step 4: Mark invoice as processed
-    if (activeInvoice) {
-      await fetch(`/api/invoices/${activeInvoice.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fieldKey: "cms_ref", fieldValue: cmsRef }),
-      });
-    }
+    // Step 5: Mark invoice as processed
+    await fetch(`/api/invoices/${activeInvoice.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fieldKey: "cms_ref", fieldValue: cmsRef }),
+    });
 
     setSubmitting(false);
-    setSubmitResult({ digitollId, customsRef: cmsRef });
+    setSubmitResult({
+      digitollId: [transportStateId, masterStateId, houseStateId].filter(Boolean).join(" · "),
+      customsRef: cmsRef,
+    });
   }
 
   async function handleCreate() {

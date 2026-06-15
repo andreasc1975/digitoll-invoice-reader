@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const ALLOWED = [
-  "reference", "transport_mode", "carrier", "border_crossing",
-  "eta", "ata", "status", "source", "tms_trip_ref",
+  "reference", "master_id", "exporter", "importer", "importer_org_no",
+  "goods_description", "hs_code", "gross_weight", "net_weight",
+  "packages", "country_origin", "customs_status", "tms_order_id", "source",
 ];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = supabaseAdmin();
   const { data, error } = await db
-    .from("transports")
-    .select("*, masters(id, state_id, reference, status)")
+    .from("houses")
+    .select("*, masters(id, state_id, reference, transports(id, state_id, reference))")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -27,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (key in body) update[key] = body[key];
   }
   const { data, error } = await db
-    .from("transports")
+    .from("houses")
     .update(update)
     .eq("id", id)
     .select()
@@ -39,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = supabaseAdmin();
-  const { error } = await db.from("transports").delete().eq("id", id);
+  const { error } = await db.from("houses").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

@@ -183,65 +183,75 @@ export default function TMSTrips() {
     setSending(trip.id);
     const linkedOrders = orders.filter(o => trip.order_ids.includes(o.id));
 
-    // 1. Skapa transport
+    // 1. Skapa Transport
     const trRes = await fetch("/api/transports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        reference: trip.reference,
-        transport_mode: "Road",
+        reference:       trip.reference,
+        transport_mode:  "Road",
         border_crossing: trip.to,
-        eta: new Date(trip.arrival).toISOString(),
-        carrier: trip.resource,
-        status: linkedOrders.length > 0 ? "missing_shipments" : "incomplete",
-        declaration_status: "none",
-        source: "tms",
-        tms_trip_ref: trip.reference,
+        eta:             new Date(trip.arrival).toISOString(),
+        carrier:         trip.resource,
+        status:          "incomplete",
+        source:          "tms",
+        tms_trip_ref:    trip.reference,
       }),
     });
-
     if (!trRes.ok) { setSending(null); return; }
     const transport = await trRes.json();
-    const digitollTrId = transport.reference ?? transport.id;
 
-    // 2. Skapa shipments för varje länkad order och koppla dem
-    const shipmentIds: string[] = [];
+    // 2. Skapa Master länkat till Transport
+    const masterRes = await fetch("/api/masters", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transport_id: transport.id,
+        status:       "incomplete",
+        source:       "tms",
+      }),
+    });
+    let masterId: string | null = null;
+    if (masterRes.ok) {
+      const master = await masterRes.json();
+      masterId = master.id;
+    }
+
+    // 3. Skapa Houses för varje länkad order
     for (const order of linkedOrders) {
-      const shRes = await fetch("/api/shipments", {
+      const houseRes = await fetch("/api/houses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          reference: order.reference,
-          transport_id: transport.id,
-          actor: order.consignor,
-          eta: new Date(trip.arrival).toISOString(),
-          status: "complete_linked",
-          own_transport: false,
-          declaration_status: "none",
-          source: "tms",
-          tms_order_ref: order.reference,
+          master_id:      masterId,
+          exporter:       order.consignor,
+          importer:       order.consignee,
+          gross_weight:   order.gross_weight ? String(order.gross_weight) : null,
+          packages:       order.packages ? String(order.packages) : null,
+          customs_status: order.customs_status === "Cleared" ? "cleared" : "pending",
+          tms_order_id:   order.id,
+          source:         "tms",
         }),
       });
-      if (shRes.ok) {
-        const shipment = await shRes.json();
-        shipmentIds.push(shipment.id);
-        // Uppdatera order med digitoll_id via API
-        await fetch(`/api/tms/orders/${order.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ digitoll_id: shipment.reference ?? shipment.id }) });
+      if (houseRes.ok) {
+        const house = await houseRes.json();
+        await fetch(`/api/tms/orders/${order.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ digitoll_id: house.state_id }),
+        });
       }
     }
 
-    // 3. Uppdatera transport-status
-    if (shipmentIds.length > 0) {
-      await fetch(`/api/transports/${transport.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ready" }),
-      });
-    }
-
     // 4. Uppdatera trip med digitoll_id
-    setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, digitoll_id: digitollTrId } : t));
+    await fetch(`/api/tms/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ digitoll_id: transport.state_id }),
+    });
+    setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, digitoll_id: transport.state_id } : t));
     setSending(null);
+    load();
   }
 
   const tripStatusColor = (s: string) => s === "Dispatched" ? { bg: "#EFF8FF", color: "#175CD3" } : { bg: "#F9FAFB", color: "#667085" };

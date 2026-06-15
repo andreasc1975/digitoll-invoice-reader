@@ -33,8 +33,12 @@ const NAV_SECTIONS = [
     key: "digitoll",
     label: "Digitoll",
     icon: "receipt_long",
-    href: "/digitoll",
-    items: [],
+    href: "/digitoll/transport",
+    items: [
+      { href: "/digitoll/transport", label: "Transport" },
+      { href: "/digitoll/master",    label: "Master" },
+      { href: "/digitoll/house",     label: "House" },
+    ],
   },
   {
     key: "tms",
