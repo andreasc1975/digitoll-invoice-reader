@@ -41,6 +41,191 @@ const SOURCE_CFG: Record<string, { label: string; bg: string; color: string }> =
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 12.5, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
+type HNode = { type: "transport" | "master" | "house"; id: string; label: string; status: string; active: boolean };
+
+function statusDot(status: string): string {
+  if (["ready","cleared","accepted","sent","received"].includes(status)) return "#12B76A";
+  if (["held","rejected"].includes(status)) return "#F04438";
+  return "#F79009";
+}
+
+function HierarchyBar({ nodes, onNavigate }: { nodes: HNode[]; onNavigate: (n: HNode) => void }) {
+  const COLOR: Record<string, { bg: string; color: string; activeBg: string }> = {
+    transport: { bg: "#EFF8FF", color: "#175CD3", activeBg: "#1570EF" },
+    master:    { bg: "#EFF8FF", color: "#446BF9", activeBg: "#3054D4" },
+    house:     { bg: "#F9F5FF", color: "#6941C6", activeBg: "#5925A8" },
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    ready: "Ready", incomplete: "Incomplete", sent: "Sent", received: "Received",
+    accepted: "Accepted", rejected: "Rejected", arrived: "Arrived",
+    pending: "Pending", cleared: "Cleared", held: "Held",
+  };
+  return (
+    <div style={{ padding: "12px 20px", background: "#F8FAFC", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" as const }}>
+      {nodes.map((n, i) => {
+        const c = COLOR[n.type];
+        const [hov, setHov] = React.useState(false);
+        const dot = statusDot(n.status);
+        const statusLabel = STATUS_LABEL[n.status] ?? n.status;
+        return (
+          <React.Fragment key={n.id}>
+            {i > 0 && <span style={{ color: "#D0D5DD", fontSize: 14, fontWeight: 300, margin: "0 2px" }}>›</span>}
+            <div style={{ position: "relative" as const }}>
+              <button
+                onClick={() => onNavigate(n)}
+                onMouseEnter={() => setHov(true)}
+                onMouseLeave={() => setHov(false)}
+                title={`${n.type} · ${statusLabel}`}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 2,
+                  border: n.active ? `2px solid ${c.color}` : "2px solid transparent",
+                  background: hov ? c.activeBg : c.bg,
+                  color: hov ? "#fff" : c.color,
+                  fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  transition: "background 0.1s, color 0.1s",
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: hov ? "#fff" : dot, flexShrink: 0 }} />
+                {n.label}
+              </button>
+              {/* Tooltip */}
+              {hov && (
+                <div style={{ position: "absolute" as const, bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#101828", color: "#fff", fontSize: 11, fontWeight: 500, padding: "4px 8px", borderRadius: 2, whiteSpace: "nowrap" as const, pointerEvents: "none" as const, zIndex: 500 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                    {statusLabel}
+                  </div>
+                  <div style={{ position: "absolute" as const, top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "4px solid #101828" }} />
+                </div>
+              )}
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function QuickViewModal({ type, id, label, onClose }: { type: string; id: string; label: string; onClose: () => void }) {
+  const [data, setData] = React.useState<Record<string, unknown> | null>(null);
+  const [nodes, setNodes] = React.useState<HNode[]>([]);
+
+  React.useEffect(() => {
+    const url = type === "transport" ? `/api/transports/${id}` : type === "master" ? `/api/masters/${id}` : `/api/houses/${id}`;
+    fetch(url).then(r => r.json()).then((d: Record<string, unknown>) => {
+      setData(d);
+      buildHierarchy(type, d);
+    });
+  }, [type, id]);
+
+  function calcStatus(type: string, d: Record<string, unknown>): string {
+    if (type === "transport") {
+      const s = d.status as string;
+      if (["sent","received","accepted"].includes(s)) return s;
+      if (d.ata) return "arrived";
+      return (d.border_crossing && d.eta && d.transport_mode) ? "ready" : "incomplete";
+    }
+    if (type === "master") {
+      return (d.consignor && d.consignee && d.invoice_number && d.invoice_value) ? "ready" : "incomplete";
+    }
+    return (d.goods_description && d.hs_code && d.gross_weight && d.exporter && d.importer) ? "ready" : "incomplete";
+  }
+
+  function buildHierarchy(t: string, d: Record<string, unknown>) {
+    const ns: HNode[] = [];
+    if (t === "transport") {
+      ns.push({ type: "transport", id: id, label: (d.state_id as string) ?? label, status: calcStatus("transport", d), active: true });
+      const masters = d.masters as Record<string, unknown>[] ?? [];
+      masters.forEach(m => {
+        ns.push({ type: "master", id: m.id as string, label: (m.state_id as string) ?? "Master", status: calcStatus("master", m), active: false });
+        const houses = m.houses as Record<string, unknown>[] ?? [];
+        houses.forEach(h => ns.push({ type: "house", id: h.id as string, label: (h.state_id as string) ?? "House", status: calcStatus("house", h), active: false }));
+      });
+    } else if (t === "master") {
+      const tr = d.transports as Record<string, unknown> | null;
+      if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
+      ns.push({ type: "master", id: id, label: (d.state_id as string) ?? label, status: calcStatus("master", d), active: true });
+      const houses = d.houses as Record<string, unknown>[] ?? [];
+      houses.forEach(h => ns.push({ type: "house", id: h.id as string, label: (h.state_id as string) ?? "House", status: calcStatus("house", h), active: false }));
+    } else {
+      const master = d.masters as Record<string, unknown> | null;
+      if (master) {
+        const tr = master.transports as Record<string, unknown> | null;
+        if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
+        ns.push({ type: "master", id: master.id as string, label: (master.state_id as string) ?? "Master", status: calcStatus("master", master), active: false });
+      } else if ((d.transport_id || d.transports)) {
+        const tr = d.transports as Record<string, unknown> | null;
+        if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
+      }
+      ns.push({ type: "house", id: id, label: (d.state_id as string) ?? label, status: calcStatus("house", d), active: true });
+    }
+    setNodes(ns);
+  }
+
+  function handleNavigate(n: HNode) {
+    const routes: Record<string, string> = { transport: "/digitoll/transport", master: "/digitoll/master", house: "/digitoll/house" };
+    window.location.href = routes[n.type] + `?open=${n.id}`;
+  }
+
+  const rows: [string, unknown][] = data ? Object.entries(data).filter(([k]) =>
+    !["id","created_at","updated_at","transport_id","master_id","houses","masters","transports"].includes(k)
+    && data[k] !== null && data[k] !== undefined && typeof data[k] !== "object"
+  ) : [];
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 540, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ padding: "14px 20px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 2 }}>{type}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>{label}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+        {/* Hierarchy bar */}
+        {nodes.length > 0 && <HierarchyBar nodes={nodes} onNavigate={handleNavigate} />}
+        {/* Fields */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          {!data ? (
+            <div style={{ color: "#98A2B3", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Loading…</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {rows.map(([k, v]) => (
+                <div key={k} style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".04em", minWidth: 140 }}>{k.replace(/_/g, " ")}</div>
+                  <div style={{ fontSize: 12.5, color: "#101828" }}>{String(v)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Footer */}
+        <div style={{ padding: "10px 20px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => handleNavigate({ type: type as "transport"|"master"|"house", id, label, status: "", active: true })}
+            style={{ padding: "6px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>open_in_new</span>
+            Open & edit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RefBadge({ label, color, bg, onClick }: { label: string; color: string; bg: string; onClick: (e: React.MouseEvent) => void }) {
+  const [hov, setHov] = React.useState(false);
+  return (
+    <span
+      onClick={e => { e.stopPropagation(); onClick(e); }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ display: "inline-flex", alignItems: "center", padding: "2px 7px", borderRadius: 2, fontSize: 11, fontWeight: 600, background: hov ? color : bg, color: hov ? "#fff" : color, whiteSpace: "nowrap" as const, cursor: "pointer", transition: "background 0.1s, color 0.1s", userSelect: "none" as const }}
+    >
+      {label}
+    </span>
+  );
+}
 function calcHouseStatus(h: House): string {
   const hasRequired = !!(h.goods_description && h.hs_code && h.gross_weight && h.exporter && h.importer);
   return hasRequired ? "ready" : "incomplete";
@@ -80,6 +265,22 @@ export default function HousePage() {
   const [masters, setMasters]   = useState<Master[]>([]);
   const [transports, setTransports] = useState<{id: string; state_id: string | null; reference: string | null}[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [quickView, setQuickView] = useState<{ type: string; id: string; label: string } | null>(null);
+  const [hierarchyNodes, setHierarchyNodes] = useState<HNode[]>([]);
+
+  function buildHouseHierarchy(r: House) {
+    const nodes: HNode[] = [];
+    if (r.masters?.transports) {
+      nodes.push({ type: "transport", id: r.masters.transports.id, label: r.masters.transports.state_id ?? "Transport", status: "incomplete", active: false });
+    } else if (r.transports) {
+      nodes.push({ type: "transport", id: r.transports.id, label: r.transports.state_id ?? "Transport", status: "incomplete", active: false });
+    }
+    if (r.masters) {
+      nodes.push({ type: "master", id: r.masters.id, label: r.masters.state_id ?? "Master", status: "incomplete", active: false });
+    }
+    nodes.push({ type: "house", id: r.id, label: r.state_id ?? "House", status: calcHouseStatus(r), active: true });
+    setHierarchyNodes(nodes);
+  }
   const [filter, setFilter]     = useState("all");
   const [search, setSearch]     = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -132,7 +333,7 @@ export default function HousePage() {
   }
 
   function openNew() { setForm(emptyForm); setActive(null); setModal("new"); }
-  function openEdit(r: House) { setForm({ reference: r.reference ?? "", master_id: r.master_id ?? "", transport_id: "", create_transport: false, transport_mode: "Road", border_crossing: "", carrier: "", eta: "", exporter: r.exporter ?? "", importer: r.importer ?? "", importer_org_no: r.importer_org_no ?? "", goods_description: r.goods_description ?? "", hs_code: r.hs_code ?? "", gross_weight: r.gross_weight ?? "", net_weight: r.net_weight ?? "", packages: r.packages ?? "", country_origin: r.country_origin ?? "", customs_status: r.customs_status }); setActive(r); setModal("edit"); }
+  function openEdit(r: House) { setForm({ reference: r.reference ?? "", master_id: r.master_id ?? "", transport_id: "", create_transport: false, transport_mode: "Road", border_crossing: "", carrier: "", eta: "", exporter: r.exporter ?? "", importer: r.importer ?? "", importer_org_no: r.importer_org_no ?? "", goods_description: r.goods_description ?? "", hs_code: r.hs_code ?? "", gross_weight: r.gross_weight ?? "", net_weight: r.net_weight ?? "", packages: r.packages ?? "", country_origin: r.country_origin ?? "", customs_status: r.customs_status }); setActive(r); setModal("edit"); buildHouseHierarchy(r); }
   function openView(r: House) { setActive(r); setModal("view"); }
 
   async function save() {
@@ -273,6 +474,9 @@ export default function HousePage() {
               <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{modal === "new" ? "New House" : `Edit House — ${active?.state_id ?? ""}`}</div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
+            {modal === "edit" && hierarchyNodes.length > 0 && (
+              <HierarchyBar nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
+            )}
             {houseFormJSX}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
@@ -314,6 +518,8 @@ export default function HousePage() {
           </div>
         </div>
       )}
+
+      {quickView && <QuickViewModal type={quickView.type} id={quickView.id} label={quickView.label} onClose={() => setQuickView(null)} />}
 
       {/* Filter bar */}
       <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
@@ -378,14 +584,17 @@ export default function HousePage() {
                 <td style={{ padding: "9px 12px", fontWeight: 700, color: "#003160" }}>{r.state_id ?? "—"}</td>
                 <td style={{ padding: "9px 12px" }}>
                   {r.masters
-                    ? <span style={{ fontSize: 11.5, fontWeight: 600, color: "#446BF9" }}>{r.masters.state_id ?? r.masters.reference ?? "—"}</span>
+                    ? <RefBadge label={r.masters.state_id ?? r.masters.reference ?? "—"} color="#446BF9" bg="#EFF8FF"
+                        onClick={() => setQuickView({ type: "master", id: r.masters!.id, label: r.masters!.state_id ?? r.masters!.reference ?? "—" })} />
                     : <span style={{ color: "#D0D5DD", fontSize: 11.5 }}>—</span>}
                 </td>
                 <td style={{ padding: "9px 12px" }}>
                   {r.masters?.transports
-                    ? <span style={{ fontSize: 11.5, fontWeight: 600, color: "#175CD3" }}>{r.masters.transports.state_id ?? r.masters.transports.reference ?? "—"}</span>
+                    ? <RefBadge label={r.masters.transports.state_id ?? r.masters.transports.reference ?? "—"} color="#175CD3" bg="#EFF8FF"
+                        onClick={() => setQuickView({ type: "transport", id: r.masters!.transports!.id, label: r.masters!.transports!.state_id ?? r.masters!.transports!.reference ?? "—" })} />
                     : r.transports
-                    ? <span style={{ fontSize: 11.5, fontWeight: 600, color: "#175CD3" }}>{r.transports.state_id ?? r.transports.reference ?? "—"}</span>
+                    ? <RefBadge label={r.transports.state_id ?? r.transports.reference ?? "—"} color="#175CD3" bg="#EFF8FF"
+                        onClick={() => setQuickView({ type: "transport", id: r.transports!.id, label: r.transports!.state_id ?? r.transports!.reference ?? "—" })} />
                     : <span style={{ color: "#D0D5DD", fontSize: 11.5 }}>—</span>}
                 </td>
                 <td style={{ padding: "9px 12px", color: "#344054" }}>{r.exporter ?? "—"}</td>
@@ -396,13 +605,15 @@ export default function HousePage() {
                 <td style={{ padding: "9px 12px" }}><SourceBadge source={r.source} /></td>
                 <td style={{ padding: "9px 12px" }}><CompletionPill house={r} /></td>
                 <td style={{ padding: "9px 12px" }}><StatusPill status={r.customs_status} /></td>
-                <td style={{ padding: "9px 8px" }}>
-                  <button onClick={e => { e.stopPropagation(); openEdit(r); }}
-                    style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#667085" }}
-                    onMouseEnter={e => { (e.currentTarget.style.borderColor = "#446BF9"); (e.currentTarget.style.color = "#446BF9"); }}
-                    onMouseLeave={e => { (e.currentTarget.style.borderColor = "#E4E7EC"); (e.currentTarget.style.color = "#667085"); }}>
-                    <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>edit</span>
-                  </button>
+                <td style={{ padding: "9px 8px", textAlign: "right" as const }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: 2 }}>
+                    <button onClick={e => { e.stopPropagation(); openEdit(r); }}
+                      style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#667085" }}
+                      onMouseEnter={e => { (e.currentTarget.style.borderColor = "#446BF9"); (e.currentTarget.style.color = "#446BF9"); }}
+                      onMouseLeave={e => { (e.currentTarget.style.borderColor = "#E4E7EC"); (e.currentTarget.style.color = "#667085"); }}>
+                      <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>edit</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
