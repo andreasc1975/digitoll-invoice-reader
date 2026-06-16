@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 const ALLOWED = [
   "reference", "transport_mode", "carrier", "border_crossing",
-  "eta", "ata", "status", "source", "tms_trip_ref",
+  "eta", "ata", "status", "source", "tms_trip_ref", "mrn", "submitted_at",
 ];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
