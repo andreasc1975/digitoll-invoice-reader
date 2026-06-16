@@ -5,7 +5,7 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("houses")
-    .select("*, masters(id, state_id, reference, transports(id, state_id, reference))")
+    .select("*, masters(id, state_id, reference, transports(id, state_id, reference)), transports(id, state_id, reference)")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     .insert({
       reference:         body.reference ?? null,
       master_id:         body.master_id ?? null,
+      transport_id:      body.transport_id ?? null,
       exporter:          body.exporter ?? null,
       importer:          body.importer ?? null,
       importer_org_no:   body.importer_org_no ?? null,

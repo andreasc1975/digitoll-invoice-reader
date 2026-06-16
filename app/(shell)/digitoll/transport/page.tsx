@@ -39,6 +39,16 @@ const SOURCE_CFG: Record<string, { label: string; bg: string; color: string }> =
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 12.5, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
+function calcTransportStatus(t: Transport): string {
+  if (t.ata) return "arrived";
+  const hasRequired = !!(t.border_crossing && t.eta && t.transport_mode);
+  const hasMasters = (t.masters?.length ?? 0) > 0;
+  const mastersReady = hasMasters && t.masters!.every(m => m.status === "ready");
+  if (!hasRequired || !hasMasters) return "incomplete";
+  if (mastersReady) return "ready";
+  return "incomplete";
+}
+
 function StatusPill({ status }: { status: string }) {
   const c = STATUS_CFG[status] ?? { label: status, bg: "#F2F4F7", color: "#667085", dot: "#98A2B3" };
   return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 2, fontSize: 11.5, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: "nowrap" as const }}>
@@ -103,8 +113,8 @@ export default function TransportPage() {
 
   const filtered = records.filter(r => {
     if (search && !JSON.stringify(r).toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === "incomplete") return r.status === "incomplete";
-    if (filter === "ready")      return r.status === "ready";
+    if (filter === "incomplete") return calcTransportStatus(r) === "incomplete";
+    if (filter === "ready")      return calcTransportStatus(r) === "ready";
     if (filter === "sent")       return ["sent","received","accepted"].includes(r.status);
     if (filter === "tms")        return r.source === "tms";
     return true;
@@ -112,8 +122,8 @@ export default function TransportPage() {
 
   const counts = {
     all:        records.length,
-    incomplete: records.filter(r => r.status === "incomplete").length,
-    ready:      records.filter(r => r.status === "ready").length,
+    incomplete: records.filter(r => calcTransportStatus(r) === "incomplete").length,
+    ready:      records.filter(r => calcTransportStatus(r) === "ready").length,
     sent:       records.filter(r => ["sent","received","accepted"].includes(r.status)).length,
     tms:        records.filter(r => r.source === "tms").length,
   };
@@ -173,11 +183,6 @@ export default function TransportPage() {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div><FL required>ETA</FL><input style={inp} type="datetime-local" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} /></div>
-        <div><FL>Status</FL>
-          <select style={inp} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-            {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
       </div>
     </div>
   );
@@ -216,8 +221,8 @@ export default function TransportPage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
-              <div style={{ marginBottom: 16 }}><StatusPill status={active.status} /></div>
-              <DetailRow label="State ID"        value={active.state_id} />
+              <div style={{ marginBottom: 16 }}><StatusPill status={calcTransportStatus(active)} /></div>
+              <DetailRow label="Transport No"        value={active.state_id} />
               <DetailRow label="Reference"       value={active.reference} />
               <DetailRow label="Transport mode"  value={active.transport_mode} />
               <DetailRow label="Carrier"         value={active.carrier} />
@@ -226,7 +231,17 @@ export default function TransportPage() {
               <DetailRow label="ATA"             value={fmtDate(active.ata)} />
               <DetailRow label="Source"          value={<SourceBadge source={active.source} />} />
               <DetailRow label="TMS Trip ref."   value={active.tms_trip_ref} />
-              <DetailRow label="Masters"         value={active.masters?.length ?? 0} />
+              <DetailRow label="Masters" value={
+                active.masters && active.masters.length > 0
+                  ? <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const }}>
+                      {active.masters.map(m => (
+                        <span key={m.id} style={{ display: "inline-flex", alignItems: "center", padding: "2px 7px", borderRadius: 2, fontSize: 11, fontWeight: 600, background: "#EFF8FF", color: "#175CD3" }}>
+                          {m.state_id ?? m.reference ?? "—"}
+                        </span>
+                      ))}
+                    </div>
+                  : <span style={{ color: "#98A2B3" }}>No masters linked</span>
+              } />
             </div>
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
@@ -272,7 +287,7 @@ export default function TransportPage() {
                   {selected.size > 0 && selected.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
                 </div>
               </th>
-              {["State ID","Reference","Mode","Carrier","Border","ETA","Masters","Source","Status",""].map((h, i) => (
+              {["Transport No","Reference","Mode","Carrier","Border","ETA","Masters","Source","Status",""].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
@@ -302,9 +317,20 @@ export default function TransportPage() {
                 <td style={{ padding: "9px 12px", color: "#667085" }}>{r.carrier ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#667085" }}>{r.border_crossing ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{fmtDate(r.eta)}</td>
-                <td style={{ padding: "9px 12px", color: "#98A2B3", fontSize: 12 }}>{r.masters?.length ?? 0}</td>
+                <td style={{ padding: "9px 12px" }}>
+                  {r.masters && r.masters.length > 0
+                    ? <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const }}>
+                        {r.masters.map(m => (
+                          <span key={m.id} style={{ display: "inline-flex", alignItems: "center", padding: "2px 7px", borderRadius: 2, fontSize: 11, fontWeight: 600, background: "#EFF8FF", color: "#175CD3", whiteSpace: "nowrap" as const }}>
+                            {m.state_id ?? m.reference ?? "—"}
+                          </span>
+                        ))}
+                      </div>
+                    : <span style={{ color: "#D0D5DD", fontSize: 12 }}>—</span>
+                  }
+                </td>
                 <td style={{ padding: "9px 12px" }}><SourceBadge source={r.source} /></td>
-                <td style={{ padding: "9px 12px" }}><StatusPill status={r.status} /></td>
+                <td style={{ padding: "9px 12px" }}><StatusPill status={calcTransportStatus(r)} /></td>
                 <td style={{ padding: "9px 8px" }}>
                   <button onClick={e => { e.stopPropagation(); openEdit(r); }}
                     style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#667085" }}

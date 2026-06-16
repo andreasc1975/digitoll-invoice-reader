@@ -48,6 +48,20 @@ const STATUS_CFG: Record<string, { label: string; bg: string; color: string; dot
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 12.5, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
+function calcMasterStatus(m: Master): string {
+  const hasRequired = !!(m.consignor && m.consignee && m.invoice_number && m.invoice_value);
+  const hasHouses = (m.houses?.length ?? 0) > 0;
+  if (!hasRequired || !hasHouses) return "incomplete";
+  const housesReady = m.houses!.every(h => calcHouseStatus(h) === "ready");
+  if (housesReady) return "ready";
+  return "incomplete";
+}
+
+function calcHouseStatus(h: { goods_description?: string | null; hs_code?: string | null; gross_weight?: string | null; exporter?: string | null; importer?: string | null }): string {
+  const hasRequired = !!(h.goods_description && h.hs_code && h.gross_weight && h.exporter && h.importer);
+  return hasRequired ? "ready" : "incomplete";
+}
+
 function StatusPill({ status }: { status: string }) {
   const c = STATUS_CFG[status] ?? { label: status, bg: "#F2F4F7", color: "#667085", dot: "#98A2B3" };
   return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 2, fontSize: 11.5, fontWeight: 500, background: c.bg, color: c.color, whiteSpace: "nowrap" as const }}>
@@ -155,14 +169,14 @@ export default function MasterPage() {
 
   const filtered = records.filter(r => {
     if (search && !JSON.stringify(r).toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === "incomplete") return r.status === "incomplete";
-    if (filter === "ready")      return r.status === "ready";
+    if (filter === "incomplete") return calcMasterStatus(r) === "incomplete";
+    if (filter === "ready")      return calcMasterStatus(r) === "ready";
     if (filter === "linked")     return !!r.transport_id;
     if (filter === "unlinked")   return !r.transport_id;
     return true;
   });
 
-  const counts = { all: records.length, incomplete: records.filter(r => r.status === "incomplete").length, ready: records.filter(r => r.status === "ready").length, linked: records.filter(r => !!r.transport_id).length, unlinked: records.filter(r => !r.transport_id).length };
+  const counts = { all: records.length, incomplete: records.filter(r => calcMasterStatus(r) === "incomplete").length, ready: records.filter(r => calcMasterStatus(r) === "ready").length, linked: records.filter(r => !!r.transport_id).length, unlinked: records.filter(r => !r.transport_id).length };
 
   function toggleRow(id: string) { setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
 
@@ -262,11 +276,6 @@ export default function MasterPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div><FL>Gross weight (kg)</FL><input style={inp} value={form.gross_weight} onChange={e => setForm(f => ({ ...f, gross_weight: e.target.value }))} placeholder="1240.00" /></div>
         <div><FL>Net weight (kg)</FL><input style={inp} value={form.net_weight} onChange={e => setForm(f => ({ ...f, net_weight: e.target.value }))} placeholder="1108.50" /></div>
-        <div><FL>Status</FL>
-          <select style={inp} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-            {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
       </div>
     </div>
   );
@@ -370,7 +379,7 @@ export default function MasterPage() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                         <thead>
                           <tr style={{ borderBottom: "1px solid #E4E7EC" }}>
-                            {["State ID", "Exporter", "Goods", "HS Code", "Gross kg", "Status", ""].map((h, i) => (
+                            {["Master No", "Exporter", "Goods", "HS Code", "Gross kg", "Status", ""].map((h, i) => (
                               <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const }}>{h}</th>
                             ))}
                           </tr>
@@ -412,7 +421,7 @@ export default function MasterPage() {
 
             {/* Footer */}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              {modal === "edit" && active && <StatusPill status={active.status} />}
+              {modal === "edit" && active && <StatusPill status={calcMasterStatus(active)} />}
               <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
                 <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>
                   {modal === "edit" ? "Close" : "Cancel"}
@@ -463,7 +472,7 @@ export default function MasterPage() {
                   {selected.size > 0 && selected.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
                 </div>
               </th>
-              {["State ID","Transport","Consignor","Consignee","Incoterm","Invoice","Value","Houses","Status",""].map((h, i) => (
+              {["Master No","Transport","Consignor","Consignee","Incoterm","Invoice","Value","Houses","Status",""].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
@@ -498,8 +507,30 @@ export default function MasterPage() {
                 <td style={{ padding: "9px 12px", color: "#667085" }}>{r.incoterm ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{r.invoice_number ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{r.invoice_value ? `${r.currency ?? ""} ${r.invoice_value}` : "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#98A2B3", fontSize: 12 }}>{r.houses?.length ?? 0}</td>
-                <td style={{ padding: "9px 12px" }}><StatusPill status={r.status} /></td>
+                <td style={{ padding: "9px 12px", maxWidth: 180 }}>
+                  {(() => {
+                    const houses = r.houses ?? [];
+                    if (houses.length === 0) return <span style={{ color: "#D0D5DD", fontSize: 12 }}>—</span>;
+                    const MAX = 3;
+                    const visible = houses.slice(0, MAX);
+                    const hidden = houses.length - MAX;
+                    return (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" as const, alignItems: "center", overflow: "hidden" }}>
+                        {visible.map(h => (
+                          <span key={h.id} style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 2, fontSize: 10.5, fontWeight: 600, background: "#F9F5FF", color: "#6941C6", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+                            {h.state_id ?? "—"}
+                          </span>
+                        ))}
+                        {hidden > 0 && (
+                          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 2, fontSize: 10.5, fontWeight: 700, background: "#F2F4F7", color: "#667085", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+                            +{hidden}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </td>
+                <td style={{ padding: "9px 12px" }}><StatusPill status={calcMasterStatus(r)} /></td>
                 <td style={{ padding: "9px 8px" }}>
                   <button onClick={e => { e.stopPropagation(); openEdit(r); }}
                     style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#667085" }}

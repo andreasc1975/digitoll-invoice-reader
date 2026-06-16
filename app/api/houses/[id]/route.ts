@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const ALLOWED = [
-  "reference", "master_id", "exporter", "importer", "importer_org_no",
+  "reference", "master_id", "transport_id", "exporter", "importer", "importer_org_no",
   "goods_description", "hs_code", "gross_weight", "net_weight",
   "packages", "country_origin", "customs_status", "tms_order_id", "source",
 ];
@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("houses")
-    .select("*, masters(id, state_id, reference, transports(id, state_id, reference))")
+    .select("*, masters(id, state_id, reference, transports(id, state_id, reference)), transports(id, state_id, reference)")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
