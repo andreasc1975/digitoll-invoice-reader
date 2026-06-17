@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 const ALLOWED = [
   "reference", "transport_id", "consignor", "consignee",
   "incoterm", "incoterm_place", "invoice_number", "invoice_date",
-  "invoice_value", "currency", "gross_weight", "net_weight", "status", "source",
+  "invoice_value", "currency", "gross_weight", "net_weight", "status",
 ];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

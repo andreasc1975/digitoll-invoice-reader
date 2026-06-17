@@ -334,7 +334,7 @@ export default function HousePage() {
 
   function openNew() { setForm(emptyForm); setActive(null); setModal("new"); }
   function openEdit(r: House) { setForm({ reference: r.reference ?? "", master_id: r.master_id ?? "", transport_id: "", create_transport: false, transport_mode: "Road", border_crossing: "", carrier: "", eta: "", exporter: r.exporter ?? "", importer: r.importer ?? "", importer_org_no: r.importer_org_no ?? "", goods_description: r.goods_description ?? "", hs_code: r.hs_code ?? "", gross_weight: r.gross_weight ?? "", net_weight: r.net_weight ?? "", packages: r.packages ?? "", country_origin: r.country_origin ?? "", customs_status: r.customs_status }); setActive(r); setModal("edit"); buildHouseHierarchy(r); }
-  function openView(r: House) { setActive(r); setModal("view"); }
+  function openView(r: House) { setActive(r); setModal("view"); buildHouseHierarchy(r); }
 
   async function save() {
     setSaving(true);
@@ -366,7 +366,7 @@ export default function HousePage() {
       packages:          form.packages || null,
       country_origin:    form.country_origin || null,
       customs_status:    form.customs_status,
-      source:            "manual",
+      ...(modal === "new" ? { source: "manual" } : {}),
     };
 
     if (modal === "new") {
@@ -488,17 +488,23 @@ export default function HousePage() {
         </div>
       )}
 
+      {/* View modal */}
       {modal === "view" && active && (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 620, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "16px 22px 14px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{`House — ${active.state_id ?? active.reference ?? ""}`}</div>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ padding: "14px 22px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 2 }}>House</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>{active.state_id ?? active.reference ?? "—"}</div>
+                {active.goods_description && <div style={{ fontSize: 12, color: "#667085", marginTop: 2 }}>{active.goods_description}</div>}
+              </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
-              <div style={{ marginBottom: 16 }}><StatusPill status={active.customs_status} /></div>
+            {hierarchyNodes.length > 0 && <HierarchyBar nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <DetailRow label="House No"          value={active.state_id} />
-              <DetailRow label="Master"            value={active.masters ? <span style={{ fontWeight: 600, color: "#446BF9" }}>{active.masters.state_id ?? active.masters.reference}{active.masters.transports ? ` → ${active.masters.transports.state_id ?? ""}` : ""}</span> : <span style={{ color: "#98A2B3" }}>Not linked</span>} />
+              <DetailRow label="Completion"        value={<CompletionPill house={active} />} />
+              <DetailRow label="Customs status"    value={<StatusPill status={active.customs_status} />} />
               <DetailRow label="Exporter"          value={active.exporter} />
               <DetailRow label="Importer"          value={active.importer} />
               <DetailRow label="Importer org.no"   value={active.importer_org_no} />
@@ -509,7 +515,6 @@ export default function HousePage() {
               <DetailRow label="Net weight"        value={active.net_weight ? `${active.net_weight} kg` : null} />
               <DetailRow label="Packages"          value={active.packages} />
               <DetailRow label="Source"            value={<SourceBadge source={active.source} />} />
-              <DetailRow label="TMS Order ID"      value={active.tms_order_id} />
             </div>
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>

@@ -874,22 +874,70 @@ export default function IncomingDocuments() {
     if (!activeInvoice || !createType) return;
     setSaving(true);
     const get = (k: string) => localFields[k]?.value ?? "";
-    const body = createType === "transport" ? {
-      reference: `TR-${Date.now().toString().slice(-4)}`,
-      border_crossing: get("destinationCountry"),
-      transport_mode: get("modeOfTransport") || "Road",
-      carrier: get("transportRef"),
-    } : {
-      reference: `SH-${Date.now().toString().slice(-4)}`,
-      actor: get("exp_name"),
-      transport_id: linkTransportId || null,
-    };
-    const res = await fetch(`/api/${createType}s`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (res.ok) {
-      const record = await res.json();
-      await fetch(`/api/invoices/${activeInvoice.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [`${createType}_id`]: record.id }) });
-      setSaving(false); discardAndReturn(); router.push("/digitoll");
-    } else { setSaving(false); }
+
+    if (createType === "transport") {
+      // Skapa Transport → Master → House
+      const trRes = await fetch("/api/transports", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transport_mode:  get("sad_transport_mode_border") || "Road",
+          carrier:         get("sad_transport_ref_border") || null,
+          border_crossing: get("sad_border_crossing") || null,
+          status:          "incomplete",
+          source:          "document_reader",
+        }),
+      });
+      if (trRes.ok) {
+        const t = await trRes.json();
+        const mRes = await fetch("/api/masters", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transport_id:   t.id,
+            consignor:      get("sad_exp_name") || null,
+            consignee:      get("sad_imp_name") || null,
+            incoterm:       get("sad_incoterm") || null,
+            incoterm_place: get("sad_incoterm_place") || null,
+            invoice_number: get("sad_invoice_number") || null,
+            invoice_date:   get("sad_invoice_date") || null,
+            invoice_value:  get("sad_invoice_value") || null,
+            currency:       get("sad_currency") || null,
+            gross_weight:   get("sad_gross_weight") || null,
+            net_weight:     get("sad_net_weight") || null,
+            status:         "incomplete",
+            source:         "document_reader",
+          }),
+        });
+        if (mRes.ok) {
+          const m = await mRes.json();
+          await fetch("/api/houses", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              master_id:         m.id,
+              exporter:          get("sad_exp_name") || null,
+              importer:          get("sad_imp_name") || null,
+              importer_org_no:   get("sad_imp_org_no") || null,
+              goods_description: get("sad_goods_description") || null,
+              hs_code:           get("sad_hs_code") || null,
+              gross_weight:      get("sad_gross_weight") || null,
+              net_weight:        get("sad_net_weight") || null,
+              packages:          get("sad_packages") || null,
+              country_origin:    get("sad_country_origin") || null,
+              customs_status:    "pending",
+              source:            "document_reader",
+            }),
+          });
+          await fetch(`/api/invoices/${activeInvoice.id}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fieldKey: "digitoll_id", fieldValue: t.state_id }),
+          });
+        }
+        setSaving(false);
+        discardAndReturn();
+        router.push("/digitoll/transport");
+      } else {
+        setSaving(false);
+      }
+    }
   }
 
   // ── Filtered invoices ─────────────────────────────────────────────────────
@@ -1470,7 +1518,7 @@ export default function IncomingDocuments() {
                     Submit both
                   </button>
                   <button
-                    onClick={() => digitollOk && setDestination(destination === "digitoll" ? null : "digitoll")}
+                    onClick={() => { if (digitollOk) { setDestination(destination === "digitoll" ? null : "digitoll"); setCreateType("transport"); } }}
                     style={{ ...btnBase(digitollOk, destination === "digitoll"), border: destination === "digitoll" ? "2px solid #446BF9" : digitollOk ? "1px solid #D0D5DD" : "1px solid #E4E7EC" }}
                     title={!digitollOk ? `${digitollComp.total - digitollComp.filled} Digitoll fields missing` : "Create Digitoll transport"}
                   >

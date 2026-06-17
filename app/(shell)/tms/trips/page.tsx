@@ -180,8 +180,9 @@ export default function TMSTrips() {
   }
 
   async function sendToDigitoll(trip: Trip) {
-    setSending(trip.id);
     const linkedOrders = orders.filter(o => trip.order_ids.includes(o.id));
+    if (linkedOrders.length === 0) return; // ska inte kunna hända p.g.a. disabled-knapp
+    setSending(trip.id);
 
     // 1. Skapa Transport
     const trRes = await fetch("/api/transports", {
@@ -471,8 +472,18 @@ export default function TMSTrips() {
                     ) : (
                       <button
                         onClick={() => sendToDigitoll(trip)}
-                        disabled={sending === trip.id}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 2, background: "#446BF9", color: "#fff", fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "inherit", opacity: sending === trip.id ? 0.6 : 1, whiteSpace: "nowrap" as const }}
+                        disabled={sending === trip.id || linkedOrders.length === 0}
+                        title={linkedOrders.length === 0 ? "Add at least one order before sending to Digitoll" : "Send to Digitoll"}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 2,
+                          background: linkedOrders.length === 0 ? "#F2F4F7" : "#446BF9",
+                          color: linkedOrders.length === 0 ? "#98A2B3" : "#fff",
+                          fontSize: 11.5, fontWeight: 700, border: "none",
+                          cursor: linkedOrders.length === 0 ? "not-allowed" : "pointer",
+                          fontFamily: "inherit",
+                          opacity: sending === trip.id ? 0.6 : 1,
+                          whiteSpace: "nowrap" as const,
+                        }}
                       >
                         {sending === trip.id ? "Sending…" : "→ Digitoll"}
                       </button>

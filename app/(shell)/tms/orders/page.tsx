@@ -411,6 +411,8 @@ export default function TMSOrders() {
                   <td style={{ padding: "9px 12px" }}>
                     {order.digitoll_id
                       ? <span style={{ fontSize: 11.5, fontWeight: 600, color: "#027A48" }}>{order.digitoll_id}</span>
+                      : order.trip_ids.length === 0
+                      ? <span style={{ fontSize: 11, color: "#98A2B3", fontStyle: "italic" as const }} title="Link order to a trip before sending to Digitoll">Requires a trip</span>
                       : <button onClick={() => sendToDigitoll(order)} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 2, background: "transparent", color: "#446BF9", fontSize: 11.5, fontWeight: 600, border: "1px solid #446BF9", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
                           → Digitoll
                         </button>
