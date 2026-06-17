@@ -5,7 +5,7 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("transports")
-    .select("*, masters(id, state_id, reference, status, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status))")
+    .select("*, masters(id, state_id, reference, status, consignor, consignee, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location))")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
@@ -17,14 +17,21 @@ export async function POST(req: NextRequest) {
   const { data, error } = await db
     .from("transports")
     .insert({
-      reference:       body.reference ?? null,
-      transport_mode:  body.transport_mode ?? null,
-      carrier:         body.carrier ?? null,
-      border_crossing: body.border_crossing ?? null,
-      eta:             body.eta ?? null,
-      status:          body.status ?? "incomplete",
-      source:          body.source ?? "manual",
-      tms_trip_ref:    body.tms_trip_ref ?? null,
+      reference:                      body.reference ?? null,
+      transport_mode:                 body.transport_mode ?? null,
+      carrier:                        body.carrier ?? null,
+      border_crossing:                body.border_crossing ?? null,
+      eta:                            body.eta ?? null,
+      scheduled_arrival:              body.scheduled_arrival ?? null,
+      identification_number:          body.identification_number ?? null,
+      type_of_identification:         body.type_of_identification ?? null,
+      conveyance_reference_number:    body.conveyance_reference_number ?? null,
+      operator_name:                  body.operator_name ?? null,
+      operator_id:                    body.operator_id ?? null,
+      customs_office:                 body.customs_office ?? null,
+      status:                         body.status ?? "incomplete",
+      source:                         body.source ?? "manual",
+      tms_trip_ref:                   body.tms_trip_ref ?? null,
     })
     .select()
     .single();

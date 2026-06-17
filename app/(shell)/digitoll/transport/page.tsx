@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
 
 interface Transport {
   id: string;
@@ -10,6 +11,13 @@ interface Transport {
   border_crossing: string | null;
   eta: string | null;
   ata: string | null;
+  scheduled_arrival: string | null;
+  identification_number: string | null;
+  type_of_identification: string | null;
+  conveyance_reference_number: string | null;
+  operator_name: string | null;
+  operator_id: string | null;
+  customs_office: string | null;
   status: string;
   source: string;
   tms_trip_ref: string | null;
@@ -43,71 +51,6 @@ const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex"
 
 type QuickView = { type: string; id: string; label: string };
 
-type HNode = { type: "transport" | "master" | "house"; id: string; label: string; status: string; active: boolean };
-
-function statusDot(status: string): string {
-  if (["ready","cleared","accepted","sent","received"].includes(status)) return "#12B76A";
-  if (["held","rejected"].includes(status)) return "#F04438";
-  return "#F79009";
-}
-
-function HierarchyBar({ nodes, onNavigate }: { nodes: HNode[]; onNavigate: (n: HNode) => void }) {
-  const COLOR: Record<string, { bg: string; color: string; activeBg: string }> = {
-    transport: { bg: "#EFF8FF", color: "#175CD3", activeBg: "#1570EF" },
-    master:    { bg: "#EFF8FF", color: "#446BF9", activeBg: "#3054D4" },
-    house:     { bg: "#F9F5FF", color: "#6941C6", activeBg: "#5925A8" },
-  };
-  const STATUS_LABEL: Record<string, string> = {
-    ready: "Ready", incomplete: "Incomplete", sent: "Sent", received: "Received",
-    accepted: "Accepted", rejected: "Rejected", arrived: "Arrived",
-    pending: "Pending", cleared: "Cleared", held: "Held",
-  };
-  return (
-    <div style={{ padding: "12px 20px", background: "#F8FAFC", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" as const }}>
-      {nodes.map((n, i) => {
-        const c = COLOR[n.type];
-        const [hov, setHov] = React.useState(false);
-        const dot = statusDot(n.status);
-        const statusLabel = STATUS_LABEL[n.status] ?? n.status;
-        return (
-          <React.Fragment key={n.id}>
-            {i > 0 && <span style={{ color: "#D0D5DD", fontSize: 14, fontWeight: 300, margin: "0 2px" }}>›</span>}
-            <div style={{ position: "relative" as const }}>
-              <button
-                onClick={() => onNavigate(n)}
-                onMouseEnter={() => setHov(true)}
-                onMouseLeave={() => setHov(false)}
-                title={`${n.type} · ${statusLabel}`}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 2,
-                  border: n.active ? `2px solid ${c.color}` : "2px solid transparent",
-                  background: hov ? c.activeBg : c.bg,
-                  color: hov ? "#fff" : c.color,
-                  fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  transition: "background 0.1s, color 0.1s",
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: hov ? "#fff" : dot, flexShrink: 0 }} />
-                {n.label}
-              </button>
-              {/* Tooltip */}
-              {hov && (
-                <div style={{ position: "absolute" as const, bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#101828", color: "#fff", fontSize: 11, fontWeight: 500, padding: "4px 8px", borderRadius: 2, whiteSpace: "nowrap" as const, pointerEvents: "none" as const, zIndex: 500 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                    {statusLabel}
-                  </div>
-                  <div style={{ position: "absolute" as const, top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "4px solid #101828" }} />
-                </div>
-              )}
-            </div>
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
 function QuickViewModal({ type, id, label, onClose }: { type: string; id: string; label: string; onClose: () => void }) {
   const [data, setData] = React.useState<Record<string, unknown> | null>(null);
   const [nodes, setNodes] = React.useState<HNode[]>([]);
@@ -116,53 +59,9 @@ function QuickViewModal({ type, id, label, onClose }: { type: string; id: string
     const url = type === "transport" ? `/api/transports/${id}` : type === "master" ? `/api/masters/${id}` : `/api/houses/${id}`;
     fetch(url).then(r => r.json()).then((d: Record<string, unknown>) => {
       setData(d);
-      buildHierarchy(type, d);
+      setNodes(nodesFromDetail(type, d));
     });
   }, [type, id]);
-
-  function calcStatus(type: string, d: Record<string, unknown>): string {
-    if (type === "transport") {
-      const s = d.status as string;
-      if (["sent","received","accepted"].includes(s)) return s;
-      if (d.ata) return "arrived";
-      return (d.border_crossing && d.eta && d.transport_mode) ? "ready" : "incomplete";
-    }
-    if (type === "master") {
-      return (d.consignor && d.consignee && d.invoice_number && d.invoice_value) ? "ready" : "incomplete";
-    }
-    return (d.goods_description && d.hs_code && d.gross_weight && d.exporter && d.importer) ? "ready" : "incomplete";
-  }
-
-  function buildHierarchy(t: string, d: Record<string, unknown>) {
-    const ns: HNode[] = [];
-    if (t === "transport") {
-      ns.push({ type: "transport", id: id, label: (d.state_id as string) ?? label, status: calcStatus("transport", d), active: true });
-      const masters = d.masters as Record<string, unknown>[] ?? [];
-      masters.forEach(m => {
-        ns.push({ type: "master", id: m.id as string, label: (m.state_id as string) ?? "Master", status: calcStatus("master", m), active: false });
-        const houses = m.houses as Record<string, unknown>[] ?? [];
-        houses.forEach(h => ns.push({ type: "house", id: h.id as string, label: (h.state_id as string) ?? "House", status: calcStatus("house", h), active: false }));
-      });
-    } else if (t === "master") {
-      const tr = d.transports as Record<string, unknown> | null;
-      if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
-      ns.push({ type: "master", id: id, label: (d.state_id as string) ?? label, status: calcStatus("master", d), active: true });
-      const houses = d.houses as Record<string, unknown>[] ?? [];
-      houses.forEach(h => ns.push({ type: "house", id: h.id as string, label: (h.state_id as string) ?? "House", status: calcStatus("house", h), active: false }));
-    } else {
-      const master = d.masters as Record<string, unknown> | null;
-      if (master) {
-        const tr = master.transports as Record<string, unknown> | null;
-        if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
-        ns.push({ type: "master", id: master.id as string, label: (master.state_id as string) ?? "Master", status: calcStatus("master", master), active: false });
-      } else if ((d.transport_id || d.transports)) {
-        const tr = d.transports as Record<string, unknown> | null;
-        if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
-      }
-      ns.push({ type: "house", id: id, label: (d.state_id as string) ?? label, status: calcStatus("house", d), active: true });
-    }
-    setNodes(ns);
-  }
 
   function handleNavigate(n: HNode) {
     const routes: Record<string, string> = { transport: "/digitoll/transport", master: "/digitoll/master", house: "/digitoll/house" };
@@ -186,7 +85,7 @@ function QuickViewModal({ type, id, label, onClose }: { type: string; id: string
           <button onClick={onClose} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
         {/* Hierarchy bar */}
-        {nodes.length > 0 && <HierarchyBar nodes={nodes} onNavigate={handleNavigate} />}
+        {nodes.length > 0 && <HierarchyTable nodes={nodes} onNavigate={handleNavigate} />}
         {/* Fields */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
           {!data ? (
@@ -232,7 +131,12 @@ function RefBadge({ label, color, bg, onClick }: { label: string; color: string;
 function calcTransportStatus(t: Transport): string {
   if (t.status === "sent" || t.status === "received" || t.status === "accepted") return t.status;
   if (t.ata) return "arrived";
-  const hasRequired = !!(t.border_crossing && t.eta && t.transport_mode);
+  const hasRequired = !!(
+    t.border_crossing && t.transport_mode &&
+    t.identification_number && t.type_of_identification &&
+    t.operator_name && t.customs_office &&
+    (t.scheduled_arrival || t.eta)
+  );
   const hasMasters = (t.masters?.length ?? 0) > 0;
   if (!hasRequired || !hasMasters) return "incomplete";
   return "ready";
@@ -262,8 +166,18 @@ function toDatetimeLocal(s: string | null) {
 }
 
 type ModalType = "new" | "edit" | "view" | null;
-type Form = { reference: string; transport_mode: string; carrier: string; border_crossing: string; eta: string; status: string };
-const emptyForm: Form = { reference: "", transport_mode: "Road", carrier: "", border_crossing: "", eta: "", status: "incomplete" };
+type Form = {
+  reference: string; transport_mode: string; carrier: string; border_crossing: string;
+  eta: string; status: string; scheduled_arrival: string;
+  identification_number: string; type_of_identification: string;
+  conveyance_reference_number: string; operator_name: string; operator_id: string;
+  customs_office: string;
+};
+const emptyForm: Form = {
+  reference: "", transport_mode: "Road", carrier: "", border_crossing: "", eta: "", status: "incomplete",
+  scheduled_arrival: "", identification_number: "", type_of_identification: "",
+  conveyance_reference_number: "", operator_name: "", operator_id: "", customs_office: "",
+};
 
 export default function TransportPage() {
   const [records, setRecords]       = useState<Transport[]>([]);
@@ -283,14 +197,7 @@ export default function TransportPage() {
   const [hierarchyNodes, setHierarchyNodes] = useState<HNode[]>([]);
 
   function buildTransportHierarchy(t: Transport) {
-    const nodes: HNode[] = [];
-    const tStatus = calcTransportStatus(t);
-    nodes.push({ type: "transport", id: t.id, label: t.state_id ?? t.reference ?? "Transport", status: tStatus, active: true });
-    (t.masters ?? []).forEach(m => {
-      const mStatus = (m as Record<string, unknown>).consignor && (m as Record<string, unknown>).consignee ? "ready" : "incomplete";
-      nodes.push({ type: "master", id: m.id, label: m.state_id ?? m.reference ?? "Master", status: mStatus as string, active: false });
-    });
-    setHierarchyNodes(nodes);
+    setHierarchyNodes(nodesFromDetail("transport", t as unknown as Record<string, unknown>));
   }
 
   async function submitToDigitoll(t: Transport) {
@@ -363,12 +270,36 @@ export default function TransportPage() {
   }
 
   function openNew() { setForm(emptyForm); setActive(null); setModal("new"); setHierarchyNodes([]); }
-  function openEdit(r: Transport) { setForm({ reference: r.reference ?? "", transport_mode: r.transport_mode ?? "Road", carrier: r.carrier ?? "", border_crossing: r.border_crossing ?? "", eta: toDatetimeLocal(r.eta), status: r.status }); setActive(r); setModal("edit"); buildTransportHierarchy(r); }
+  function openEdit(r: Transport) {
+    setForm({
+      reference: r.reference ?? "", transport_mode: r.transport_mode ?? "Road",
+      carrier: r.carrier ?? "", border_crossing: r.border_crossing ?? "",
+      eta: toDatetimeLocal(r.eta), status: r.status,
+      scheduled_arrival: toDatetimeLocal(r.scheduled_arrival),
+      identification_number: r.identification_number ?? "",
+      type_of_identification: r.type_of_identification ?? "",
+      conveyance_reference_number: r.conveyance_reference_number ?? "",
+      operator_name: r.operator_name ?? "",
+      operator_id: r.operator_id ?? "",
+      customs_office: r.customs_office ?? "",
+    });
+    setActive(r); setModal("edit"); buildTransportHierarchy(r);
+  }
   function openView(r: Transport) { setActive(r); setModal("view"); buildTransportHierarchy(r); }
 
   async function save() {
     setSaving(true);
-    const body = { ...form, eta: form.eta || null };
+    const body = {
+      ...form,
+      eta: form.eta || null,
+      scheduled_arrival: form.scheduled_arrival || null,
+      identification_number: form.identification_number || null,
+      type_of_identification: form.type_of_identification || null,
+      conveyance_reference_number: form.conveyance_reference_number || null,
+      operator_name: form.operator_name || null,
+      operator_id: form.operator_id || null,
+      customs_office: form.customs_office || null,
+    };
     if (modal === "new") {
       await fetch("/api/transports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else if (active) {
@@ -388,25 +319,59 @@ export default function TransportPage() {
 
   const modalFormJSX = (
     <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Identifikation */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Transport means</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div><FL>Reference</FL><input style={inp} value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Auto-generated if empty" /></div>
         <div><FL required>Transport mode</FL>
           <select style={inp} value={form.transport_mode} onChange={e => setForm(f => ({ ...f, transport_mode: e.target.value }))}>
             {TRANSPORT_MODES.map(m => <option key={m}>{m}</option>)}
           </select>
         </div>
+        <div><FL>Reference</FL><input style={inp} value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Auto-generated if empty" /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div><FL required>Identification number</FL><input style={inp} value={form.identification_number} onChange={e => setForm(f => ({ ...f, identification_number: e.target.value }))} placeholder="Reg. no, IMO, IATA…" /></div>
+        <div><FL required>Type of identification</FL>
+          <select style={inp} value={form.type_of_identification} onChange={e => setForm(f => ({ ...f, type_of_identification: e.target.value }))}>
+            <option value="">Select…</option>
+            <option value="10">IMO ship identification number</option>
+            <option value="11">Name of sea-going vessel</option>
+            <option value="20">Wagon number</option>
+            <option value="21">Train number</option>
+            <option value="30">Registration number of road vehicle</option>
+            <option value="40">IATA flight number</option>
+            <option value="41">Registration number of aircraft</option>
+            <option value="80">European vessel identification number (ENI)</option>
+            <option value="81">Name of inland waterways vessel</option>
+          </select>
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div><FL>Carrier / vehicle ref.</FL><input style={inp} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} placeholder="ABC 123 456" /></div>
+        <div><FL>Conveyance ref. no. (air only)</FL><input style={inp} value={form.conveyance_reference_number} onChange={e => setForm(f => ({ ...f, conveyance_reference_number: e.target.value }))} placeholder="Route number" /></div>
+      </div>
+
+      {/* Operator */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Operator / driver</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div><FL required>Operator name</FL><input style={inp} value={form.operator_name} onChange={e => setForm(f => ({ ...f, operator_name: e.target.value }))} placeholder="Full name or company" /></div>
+        <div><FL>Operator ID</FL><input style={inp} value={form.operator_id} onChange={e => setForm(f => ({ ...f, operator_id: e.target.value }))} placeholder="EORI / org. no." /></div>
+      </div>
+
+      {/* Arrival */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Arrival</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div><FL required>Border crossing</FL>
           <select style={inp} value={form.border_crossing} onChange={e => setForm(f => ({ ...f, border_crossing: e.target.value }))}>
             <option value="">Select...</option>
             {BORDER_CROSSINGS.map(b => <option key={b}>{b}</option>)}
           </select>
         </div>
+        <div><FL required>Customs office</FL><input style={inp} value={form.customs_office} onChange={e => setForm(f => ({ ...f, customs_office: e.target.value }))} placeholder="e.g. NO003201" /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div><FL required>ETA</FL><input style={inp} type="datetime-local" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} /></div>
+        <div><FL required>Scheduled arrival</FL><input style={inp} type="datetime-local" value={form.scheduled_arrival} onChange={e => setForm(f => ({ ...f, scheduled_arrival: e.target.value }))} /></div>
+        <div><FL>ETA (estimated)</FL><input style={inp} type="datetime-local" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} /></div>
       </div>
     </div>
   );
@@ -422,7 +387,7 @@ export default function TransportPage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyBar nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
             )}
             {modalFormJSX}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -446,17 +411,23 @@ export default function TransportPage() {
               </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            {hierarchyNodes.length > 0 && <HierarchyBar nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
+            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px", display: "flex", flexDirection: "column", gap: 0 }}>
-              <DetailRow label="Transport No"    value={active.state_id} />
-              <DetailRow label="Reference"       value={active.reference} />
-              <DetailRow label="Mode"            value={active.transport_mode} />
-              <DetailRow label="Carrier"         value={active.carrier} />
-              <DetailRow label="Border crossing" value={active.border_crossing} />
-              <DetailRow label="ETA"             value={fmtDate(active.eta)} />
-              <DetailRow label="ATA"             value={fmtDate(active.ata)} />
-              <DetailRow label="Source"          value={<SourceBadge source={active.source} />} />
-              <DetailRow label="Status"          value={<StatusPill status={calcTransportStatus(active)} />} />
+              <DetailRow label="Transport No"       value={active.state_id} />
+              <DetailRow label="Mode"               value={active.transport_mode} />
+              <DetailRow label="Identification No"  value={active.identification_number} />
+              <DetailRow label="ID type"            value={active.type_of_identification} />
+              <DetailRow label="Carrier ref."       value={active.carrier} />
+              <DetailRow label="Conveyance ref."    value={active.conveyance_reference_number} />
+              <DetailRow label="Operator"           value={active.operator_name} />
+              <DetailRow label="Operator ID"        value={active.operator_id} />
+              <DetailRow label="Border crossing"    value={active.border_crossing} />
+              <DetailRow label="Customs office"     value={active.customs_office} />
+              <DetailRow label="Scheduled arrival"  value={fmtDate(active.scheduled_arrival)} />
+              <DetailRow label="ETA"                value={fmtDate(active.eta)} />
+              <DetailRow label="ATA"                value={fmtDate(active.ata)} />
+              <DetailRow label="Source"             value={<SourceBadge source={active.source} />} />
+              <DetailRow label="Status"             value={<StatusPill status={calcTransportStatus(active)} />} />
               {active.mrn && <DetailRow label="MRN" value={<span style={{ fontWeight: 700, letterSpacing: ".06em", color: "#003160" }}>{active.mrn}</span>} />}
               {active.submitted_at && <DetailRow label="Submitted" value={fmtDate(active.submitted_at)} />}
               <DetailRow label="Masters"         value={
@@ -514,7 +485,7 @@ export default function TransportPage() {
                   {selected.size > 0 && selected.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
                 </div>
               </th>
-              {["Transport No","Reference","Mode","Carrier","Border","ETA","Masters","Source","Status",""].map((h, i) => (
+              {["Transport No","Mode","Ident. No","Operator","Border","Sched. Arrival","Masters","Source","Status",""].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
@@ -539,11 +510,11 @@ export default function TransportPage() {
                   </div>
                 </td>
                 <td style={{ padding: "9px 12px", fontWeight: 700, color: "#003160" }}>{r.state_id ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#344054" }}>{r.reference ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#667085" }}>{r.transport_mode ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#667085" }}>{r.carrier ?? "—"}</td>
+                <td style={{ padding: "9px 12px", color: "#344054", fontSize: 12 }}>{r.identification_number ?? <span style={{ color: "#D0D5DD" }}>—</span>}</td>
+                <td style={{ padding: "9px 12px", color: "#344054", fontSize: 12 }}>{r.operator_name ?? <span style={{ color: "#D0D5DD" }}>—</span>}</td>
                 <td style={{ padding: "9px 12px", color: "#667085" }}>{r.border_crossing ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{fmtDate(r.eta)}</td>
+                <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{fmtDate(r.scheduled_arrival ?? r.eta)}</td>
                 <td style={{ padding: "9px 12px" }}>
                   {r.masters && r.masters.length > 0
                     ? <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const }}>

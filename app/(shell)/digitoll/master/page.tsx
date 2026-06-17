@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
 
 interface Transport { id: string; state_id: string | null; reference: string | null; }
 interface House {
@@ -14,6 +15,11 @@ interface House {
   gross_weight: string | null;
   packages: string | null;
   master_id: string | null;
+  tracking_number: string | null;
+  customs_procedure: string | null;
+  transport_equipment: string | null;
+  loading_location: string | null;
+  unloading_location: string | null;
 }
 interface Master {
   id: string;
@@ -30,6 +36,13 @@ interface Master {
   currency: string | null;
   gross_weight: string | null;
   net_weight: string | null;
+  document_number: string | null;
+  document_type: string | null;
+  carrier_id: string | null;
+  transport_equipment: string | null;
+  loading_location: string | null;
+  unloading_location: string | null;
+  relevant_documents: string | null;
   status: string;
   source: string;
   created_at: string;
@@ -48,71 +61,6 @@ const STATUS_CFG: Record<string, { label: string; bg: string; color: string; dot
 const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #D0D5DD", borderRadius: 2, fontSize: 12.5, color: "#101828", fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const };
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
-type HNode = { type: "transport" | "master" | "house"; id: string; label: string; status: string; active: boolean };
-
-function statusDot(status: string): string {
-  if (["ready","cleared","accepted","sent","received"].includes(status)) return "#12B76A";
-  if (["held","rejected"].includes(status)) return "#F04438";
-  return "#F79009";
-}
-
-function HierarchyBar({ nodes, onNavigate }: { nodes: HNode[]; onNavigate: (n: HNode) => void }) {
-  const COLOR: Record<string, { bg: string; color: string; activeBg: string }> = {
-    transport: { bg: "#EFF8FF", color: "#175CD3", activeBg: "#1570EF" },
-    master:    { bg: "#EFF8FF", color: "#446BF9", activeBg: "#3054D4" },
-    house:     { bg: "#F9F5FF", color: "#6941C6", activeBg: "#5925A8" },
-  };
-  const STATUS_LABEL: Record<string, string> = {
-    ready: "Ready", incomplete: "Incomplete", sent: "Sent", received: "Received",
-    accepted: "Accepted", rejected: "Rejected", arrived: "Arrived",
-    pending: "Pending", cleared: "Cleared", held: "Held",
-  };
-  return (
-    <div style={{ padding: "12px 20px", background: "#F8FAFC", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" as const }}>
-      {nodes.map((n, i) => {
-        const c = COLOR[n.type];
-        const [hov, setHov] = React.useState(false);
-        const dot = statusDot(n.status);
-        const statusLabel = STATUS_LABEL[n.status] ?? n.status;
-        return (
-          <React.Fragment key={n.id}>
-            {i > 0 && <span style={{ color: "#D0D5DD", fontSize: 14, fontWeight: 300, margin: "0 2px" }}>›</span>}
-            <div style={{ position: "relative" as const }}>
-              <button
-                onClick={() => onNavigate(n)}
-                onMouseEnter={() => setHov(true)}
-                onMouseLeave={() => setHov(false)}
-                title={`${n.type} · ${statusLabel}`}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 2,
-                  border: n.active ? `2px solid ${c.color}` : "2px solid transparent",
-                  background: hov ? c.activeBg : c.bg,
-                  color: hov ? "#fff" : c.color,
-                  fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  transition: "background 0.1s, color 0.1s",
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: hov ? "#fff" : dot, flexShrink: 0 }} />
-                {n.label}
-              </button>
-              {/* Tooltip */}
-              {hov && (
-                <div style={{ position: "absolute" as const, bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#101828", color: "#fff", fontSize: 11, fontWeight: 500, padding: "4px 8px", borderRadius: 2, whiteSpace: "nowrap" as const, pointerEvents: "none" as const, zIndex: 500 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                    {statusLabel}
-                  </div>
-                  <div style={{ position: "absolute" as const, top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "4px solid #101828" }} />
-                </div>
-              )}
-            </div>
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
 function QuickViewModal({ type, id, label, onClose }: { type: string; id: string; label: string; onClose: () => void }) {
   const [data, setData] = React.useState<Record<string, unknown> | null>(null);
   const [nodes, setNodes] = React.useState<HNode[]>([]);
@@ -121,53 +69,9 @@ function QuickViewModal({ type, id, label, onClose }: { type: string; id: string
     const url = type === "transport" ? `/api/transports/${id}` : type === "master" ? `/api/masters/${id}` : `/api/houses/${id}`;
     fetch(url).then(r => r.json()).then((d: Record<string, unknown>) => {
       setData(d);
-      buildHierarchy(type, d);
+      setNodes(nodesFromDetail(type, d));
     });
   }, [type, id]);
-
-  function calcStatus(type: string, d: Record<string, unknown>): string {
-    if (type === "transport") {
-      const s = d.status as string;
-      if (["sent","received","accepted"].includes(s)) return s;
-      if (d.ata) return "arrived";
-      return (d.border_crossing && d.eta && d.transport_mode) ? "ready" : "incomplete";
-    }
-    if (type === "master") {
-      return (d.consignor && d.consignee && d.invoice_number && d.invoice_value) ? "ready" : "incomplete";
-    }
-    return (d.goods_description && d.hs_code && d.gross_weight && d.exporter && d.importer) ? "ready" : "incomplete";
-  }
-
-  function buildHierarchy(t: string, d: Record<string, unknown>) {
-    const ns: HNode[] = [];
-    if (t === "transport") {
-      ns.push({ type: "transport", id: id, label: (d.state_id as string) ?? label, status: calcStatus("transport", d), active: true });
-      const masters = d.masters as Record<string, unknown>[] ?? [];
-      masters.forEach(m => {
-        ns.push({ type: "master", id: m.id as string, label: (m.state_id as string) ?? "Master", status: calcStatus("master", m), active: false });
-        const houses = m.houses as Record<string, unknown>[] ?? [];
-        houses.forEach(h => ns.push({ type: "house", id: h.id as string, label: (h.state_id as string) ?? "House", status: calcStatus("house", h), active: false }));
-      });
-    } else if (t === "master") {
-      const tr = d.transports as Record<string, unknown> | null;
-      if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
-      ns.push({ type: "master", id: id, label: (d.state_id as string) ?? label, status: calcStatus("master", d), active: true });
-      const houses = d.houses as Record<string, unknown>[] ?? [];
-      houses.forEach(h => ns.push({ type: "house", id: h.id as string, label: (h.state_id as string) ?? "House", status: calcStatus("house", h), active: false }));
-    } else {
-      const master = d.masters as Record<string, unknown> | null;
-      if (master) {
-        const tr = master.transports as Record<string, unknown> | null;
-        if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
-        ns.push({ type: "master", id: master.id as string, label: (master.state_id as string) ?? "Master", status: calcStatus("master", master), active: false });
-      } else if ((d.transport_id || d.transports)) {
-        const tr = d.transports as Record<string, unknown> | null;
-        if (tr) ns.push({ type: "transport", id: tr.id as string, label: (tr.state_id as string) ?? "Transport", status: calcStatus("transport", tr), active: false });
-      }
-      ns.push({ type: "house", id: id, label: (d.state_id as string) ?? label, status: calcStatus("house", d), active: true });
-    }
-    setNodes(ns);
-  }
 
   function handleNavigate(n: HNode) {
     const routes: Record<string, string> = { transport: "/digitoll/transport", master: "/digitoll/master", house: "/digitoll/house" };
@@ -191,7 +95,7 @@ function QuickViewModal({ type, id, label, onClose }: { type: string; id: string
           <button onClick={onClose} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
         {/* Hierarchy bar */}
-        {nodes.length > 0 && <HierarchyBar nodes={nodes} onNavigate={handleNavigate} />}
+        {nodes.length > 0 && <HierarchyTable nodes={nodes} onNavigate={handleNavigate} />}
         {/* Fields */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
           {!data ? (
@@ -234,7 +138,10 @@ function RefBadge({ label, color, bg, onClick }: { label: string; color: string;
   );
 }
 function calcMasterStatus(m: Master): string {
-  const hasRequired = !!(m.consignor && m.consignee && m.invoice_number && m.invoice_value);
+  const hasRequired = !!(
+    m.consignor && m.consignee && m.document_number && m.document_type &&
+    m.gross_weight && m.transport_equipment && m.loading_location && m.unloading_location
+  );
   const hasHouses = (m.houses?.length ?? 0) > 0;
   if (!hasRequired || !hasHouses) return "incomplete";
   const housesReady = m.houses!.every(h => calcHouseStatus(h) === "ready");
@@ -242,8 +149,13 @@ function calcMasterStatus(m: Master): string {
   return "incomplete";
 }
 
-function calcHouseStatus(h: { goods_description?: string | null; hs_code?: string | null; gross_weight?: string | null; exporter?: string | null; importer?: string | null }): string {
-  const hasRequired = !!(h.goods_description && h.hs_code && h.gross_weight && h.exporter && h.importer);
+function calcHouseStatus(h: House): string {
+  const hasRequired = !!(
+    h.goods_description && h.hs_code && h.gross_weight &&
+    h.exporter && h.importer && h.tracking_number &&
+    h.customs_procedure && h.transport_equipment &&
+    h.loading_location && h.unloading_location
+  );
   return hasRequired ? "ready" : "incomplete";
 }
 
@@ -260,8 +172,19 @@ function fmtDate(s: string | null) {
 }
 
 type ModalType = "new" | "edit" | "view" | null;
-type Form = { reference: string; transport_id: string; consignor: string; consignee: string; incoterm: string; incoterm_place: string; invoice_number: string; invoice_date: string; invoice_value: string; currency: string; gross_weight: string; net_weight: string; status: string; };
-const emptyForm: Form = { reference: "", transport_id: "", consignor: "", consignee: "", incoterm: "", incoterm_place: "", invoice_number: "", invoice_date: "", invoice_value: "", currency: "EUR", gross_weight: "", net_weight: "", status: "incomplete" };
+type Form = {
+  reference: string; transport_id: string; consignor: string; consignee: string;
+  incoterm: string; incoterm_place: string; invoice_number: string; invoice_date: string;
+  invoice_value: string; currency: string; gross_weight: string; net_weight: string; status: string;
+  document_number: string; document_type: string; carrier_id: string;
+  transport_equipment: string; loading_location: string; unloading_location: string; relevant_documents: string;
+};
+const emptyForm: Form = {
+  reference: "", transport_id: "", consignor: "", consignee: "", incoterm: "", incoterm_place: "",
+  invoice_number: "", invoice_date: "", invoice_value: "", currency: "EUR", gross_weight: "", net_weight: "", status: "incomplete",
+  document_number: "", document_type: "", carrier_id: "",
+  transport_equipment: "", loading_location: "", unloading_location: "", relevant_documents: "",
+};
 
 export default function MasterPage() {
   const [records, setRecords]       = useState<Master[]>([]);
@@ -285,15 +208,7 @@ export default function MasterPage() {
   const [hierarchyNodes, setHierarchyNodes] = useState<HNode[]>([]);
 
   function buildMasterHierarchy(r: Master) {
-    const nodes: HNode[] = [];
-    if (r.transports) {
-      nodes.push({ type: "transport", id: r.transports.id, label: r.transports.state_id ?? r.transports.reference ?? "Transport", status: "incomplete", active: false });
-    }
-    nodes.push({ type: "master", id: r.id, label: r.state_id ?? r.reference ?? "Master", status: calcMasterStatus(r), active: true });
-    (r.houses ?? []).forEach(h => {
-      nodes.push({ type: "house", id: h.id, label: h.state_id ?? "House", status: h.customs_status ?? "pending", active: false });
-    });
-    setHierarchyNodes(nodes);
+    setHierarchyNodes(nodesFromDetail("master", r as unknown as Record<string, unknown>));
   }
 
   async function loadHousesForMaster(masterId: string) {
@@ -396,7 +311,18 @@ export default function MasterPage() {
     fetch("/api/houses").then(r => r.json()).then(data => { if (Array.isArray(data)) setAllHouses(data); });
   }
   function openEdit(r: Master) {
-    setForm({ reference: r.reference ?? "", transport_id: r.transport_id ?? "", consignor: r.consignor ?? "", consignee: r.consignee ?? "", incoterm: r.incoterm ?? "", incoterm_place: r.incoterm_place ?? "", invoice_number: r.invoice_number ?? "", invoice_date: r.invoice_date ?? "", invoice_value: r.invoice_value ?? "", currency: r.currency ?? "EUR", gross_weight: r.gross_weight ?? "", net_weight: r.net_weight ?? "", status: r.status });
+    setForm({
+      reference: r.reference ?? "", transport_id: r.transport_id ?? "",
+      consignor: r.consignor ?? "", consignee: r.consignee ?? "",
+      incoterm: r.incoterm ?? "", incoterm_place: r.incoterm_place ?? "",
+      invoice_number: r.invoice_number ?? "", invoice_date: r.invoice_date ?? "",
+      invoice_value: r.invoice_value ?? "", currency: r.currency ?? "EUR",
+      gross_weight: r.gross_weight ?? "", net_weight: r.net_weight ?? "", status: r.status,
+      document_number: r.document_number ?? "", document_type: r.document_type ?? "",
+      carrier_id: r.carrier_id ?? "", transport_equipment: r.transport_equipment ?? "",
+      loading_location: r.loading_location ?? "", unloading_location: r.unloading_location ?? "",
+      relevant_documents: r.relevant_documents ?? "",
+    });
     setActive(r);
     setModal("edit");
     setAddingHouse(false);
@@ -477,6 +403,35 @@ export default function MasterPage() {
         <div><FL>Gross weight (kg)</FL><input style={inp} value={form.gross_weight} onChange={e => setForm(f => ({ ...f, gross_weight: e.target.value }))} placeholder="1240.00" /></div>
         <div><FL>Net weight (kg)</FL><input style={inp} value={form.net_weight} onChange={e => setForm(f => ({ ...f, net_weight: e.target.value }))} placeholder="1108.50" /></div>
       </div>
+
+      {/* Consignment note */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Consignment note / Waybill</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div><FL required>Document number (waybill)</FL><input style={inp} value={form.document_number} onChange={e => setForm(f => ({ ...f, document_number: e.target.value }))} placeholder="12345678" /></div>
+        <div><FL required>Document type</FL>
+          <select style={inp} value={form.document_type} onChange={e => setForm(f => ({ ...f, document_type: e.target.value }))}>
+            <option value="">Select…</option>
+            <option value="740">Air waybill</option>
+            <option value="741">Master air waybill</option>
+            <option value="703">Bill of lading</option>
+            <option value="704">Sea waybill</option>
+            <option value="720">Road consignment note (CMR)</option>
+            <option value="722">Rail consignment note (CIM)</option>
+          </select>
+        </div>
+        <div><FL>Carrier ID (EORI)</FL><input style={inp} value={form.carrier_id} onChange={e => setForm(f => ({ ...f, carrier_id: e.target.value }))} placeholder="NO123456789" /></div>
+      </div>
+
+      {/* Locations & Equipment */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Locations & Equipment</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div><FL required>Loading location</FL><input style={inp} value={form.loading_location} onChange={e => setForm(f => ({ ...f, loading_location: e.target.value }))} placeholder="e.g. Gothenburg port" /></div>
+        <div><FL required>Unloading location</FL><input style={inp} value={form.unloading_location} onChange={e => setForm(f => ({ ...f, unloading_location: e.target.value }))} placeholder="e.g. Oslo terminal" /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div><FL required>Transport equipment</FL><input style={inp} value={form.transport_equipment} onChange={e => setForm(f => ({ ...f, transport_equipment: e.target.value }))} placeholder="Container no., trailer reg…" /></div>
+        <div><FL>Relevant documents</FL><input style={inp} value={form.relevant_documents} onChange={e => setForm(f => ({ ...f, relevant_documents: e.target.value }))} placeholder="e.g. INV-001, PACK-001" /></div>
+      </div>
     </div>
   );
 
@@ -499,7 +454,7 @@ export default function MasterPage() {
 
             {/* Hierarchy bar */}
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyBar nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
             )}
 
             {/* Content */}
@@ -655,7 +610,7 @@ export default function MasterPage() {
               </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            {hierarchyNodes.length > 0 && <HierarchyBar nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
+            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
                 <div>
@@ -731,7 +686,7 @@ export default function MasterPage() {
                   {selected.size > 0 && selected.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
                 </div>
               </th>
-              {["Master No","Transport","Consignor","Consignee","Incoterm","Invoice","Value","Houses","Status",""].map((h, i) => (
+              {["Master No","Transport","Consignor","Consignee","Waybill No","Route","Houses","Status",""].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
@@ -764,9 +719,12 @@ export default function MasterPage() {
                 </td>
                 <td style={{ padding: "9px 12px", color: "#344054" }}>{r.consignor ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#344054" }}>{r.consignee ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#667085" }}>{r.incoterm ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{r.invoice_number ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{r.invoice_value ? `${r.currency ?? ""} ${r.invoice_value}` : "—"}</td>
+                <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{r.document_number ?? <span style={{ color: "#D0D5DD" }}>—</span>}</td>
+                <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>
+                  {r.loading_location && r.unloading_location
+                    ? `${r.loading_location} → ${r.unloading_location}`
+                    : <span style={{ color: "#D0D5DD" }}>—</span>}
+                </td>
                 <td style={{ padding: "9px 12px", maxWidth: 180 }}>
                   {(() => {
                     const houses = r.houses ?? [];

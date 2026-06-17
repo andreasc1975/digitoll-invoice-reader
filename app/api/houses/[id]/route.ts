@@ -5,6 +5,9 @@ const ALLOWED = [
   "reference", "master_id", "transport_id", "exporter", "importer", "importer_org_no",
   "goods_description", "hs_code", "gross_weight", "net_weight",
   "packages", "country_origin", "customs_status", "tms_order_id",
+  "tracking_number", "customs_procedure", "import_declaration_ref",
+  "export_declaration_ref", "ncts_reference", "transport_equipment",
+  "loading_location", "unloading_location", "relevant_documents",
 ];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("houses")
-    .select("*, masters(id, state_id, reference, transports(id, state_id, reference)), transports(id, state_id, reference)")
+    .select("*, masters(id, state_id, reference, consignor, consignee, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn)), transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn)")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

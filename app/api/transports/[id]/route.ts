@@ -3,7 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 const ALLOWED = [
   "reference", "transport_mode", "carrier", "border_crossing",
-  "eta", "ata", "status", "source", "tms_trip_ref", "mrn", "submitted_at",
+  "eta", "ata", "scheduled_arrival", "status", "tms_trip_ref", "mrn", "submitted_at",
+  "identification_number", "type_of_identification", "conveyance_reference_number",
+  "operator_name", "operator_id", "customs_office",
 ];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("transports")
-    .select("*, masters(id, state_id, reference, status)")
+    .select("*, masters(id, state_id, reference, status, consignor, consignee, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location))")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
