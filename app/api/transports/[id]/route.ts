@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("transports")
-    .select("*, masters(id, state_id, reference, status, digitoll_status, consignor, consignee, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status))")
+    .select("*, masters(id, state_id, reference, status, digitoll_status, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status))")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

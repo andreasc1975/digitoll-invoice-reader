@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("houses")
-    .select("*, masters(id, state_id, reference, consignor, consignee, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, digitoll_status, transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status)), transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status)")
+    .select("*, masters(id, state_id, reference, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, digitoll_status, transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status)), transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status)")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

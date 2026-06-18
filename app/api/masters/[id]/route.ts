@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const ALLOWED = [
-  "reference", "transport_id", "consignor", "consignee",
-  "incoterm", "incoterm_place", "invoice_number", "invoice_date",
-  "invoice_value", "currency", "gross_weight", "net_weight", "status",
+  "reference", "transport_id",
+  "gross_weight", "status",
   "document_number", "document_type", "carrier_id",
   "transport_equipment", "loading_location", "unloading_location", "relevant_documents",
   "digitoll_status", "mrn", "submitted_at",

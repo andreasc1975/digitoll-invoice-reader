@@ -5,7 +5,7 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("transports")
-    .select("*, masters(id, state_id, reference, status, digitoll_status, consignor, consignee, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status))")
+    .select("*, masters(id, state_id, reference, status, digitoll_status, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status))")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);

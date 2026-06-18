@@ -66,7 +66,7 @@ function nodeStatus(type: string, d: Record<string, unknown>): string {
             (d.scheduled_arrival || d.eta)) ? "ready" : "incomplete";
   }
   if (type === "master") {
-    return (d.consignor && d.consignee && d.document_number && d.document_type &&
+    return (d.document_number && d.document_type &&
             d.gross_weight && d.transport_equipment && d.loading_location && d.unloading_location)
       ? "ready" : "incomplete";
   }
@@ -111,14 +111,60 @@ export function nodesFromDetail(type: string, d: Record<string, unknown>): HNode
   return ns;
 }
 
-export function HierarchyTable({ nodes, onNavigate }: { nodes: HNode[]; onNavigate: (n: HNode) => void }) {
+function SubmitBtn({ node, onSubmit }: { node: HNode; onSubmit: (n: HNode) => void }) {
+  const [hov, setHov] = React.useState(false);
+  const alreadySent = node.digitoll === "sent" || node.digitoll === "accepted";
+  const canSend     = node.status === "ready" || alreadySent;
+
+  const bg    = !canSend ? "#F2F4F7" : alreadySent ? (hov ? "#027A48" : "#ECFDF3") : (hov ? "#1849c6" : "#446BF9");
+  const color = !canSend ? "#D0D5DD" : alreadySent ? (hov ? "#fff"    : "#027A48") : "#fff";
+  const border= !canSend ? "1px solid #E4E7EC" : alreadySent ? "1px solid #A6F4C5" : "none";
+
+  return (
+    <button
+      disabled={!canSend}
+      onClick={e => { e.stopPropagation(); if (canSend) onSubmit(node); }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "3px 9px", borderRadius: 2, fontSize: 11, fontWeight: 700,
+        cursor: canSend ? "pointer" : "default",
+        fontFamily: "inherit", whiteSpace: "nowrap" as const,
+        background: bg, color, border,
+        transition: "background 0.12s, color 0.12s",
+        letterSpacing: ".02em",
+      }}
+    >
+      <span style={{ fontFamily: "Material Icons", fontSize: 12, lineHeight: 1 }}>send</span>
+      {alreadySent ? "Resend" : "Submit"}
+    </button>
+  );
+}
+
+// Need React for the SubmitBtn component above
+import React from "react";
+
+export function HierarchyTable({
+  nodes,
+  onNavigate,
+  onSubmit,
+}: {
+  nodes: HNode[];
+  onNavigate: (n: HNode) => void;
+  onSubmit?: (n: HNode) => void;
+}) {
+  const headers = onSubmit
+    ? ["Level", "No.", "Identifier", "Parties", "Status", "Digitoll", ""]
+    : ["Level", "No.", "Identifier", "Parties", "Status", "Digitoll"];
+
   return (
     <div style={{ padding: "10px 20px 12px", background: "#F8FAFC", borderBottom: "1px solid #E4E7EC" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
         <thead>
           <tr>
-            {["Level", "No.", "Identifier", "Parties", "Status", "Digitoll"].map(h => (
-              <th key={h} style={{ textAlign: "left", fontSize: 9.5, fontWeight: 700, color: "#98A2B3", letterSpacing: ".04em", textTransform: "uppercase" as const, padding: "0 10px 6px 0", whiteSpace: "nowrap" as const }}>{h}</th>
+            {headers.map((h, i) => (
+              <th key={i} style={{ textAlign: "left", fontSize: 9.5, fontWeight: 700, color: "#98A2B3", letterSpacing: ".04em", textTransform: "uppercase" as const, padding: "0 10px 6px 0", whiteSpace: "nowrap" as const }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -155,6 +201,11 @@ export function HierarchyTable({ nodes, onNavigate }: { nodes: HNode[]; onNaviga
                     <span style={{ color: dg.color }}>{dg.label}</span>
                   </span>
                 </td>
+                {onSubmit && (
+                  <td style={{ padding: "4px 0 4px 10px", textAlign: "right" as const }} onClick={e => e.stopPropagation()}>
+                    <SubmitBtn node={n} onSubmit={onSubmit} />
+                  </td>
+                )}
               </tr>
             );
           })}

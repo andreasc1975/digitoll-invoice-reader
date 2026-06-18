@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
-import { DigitollSubmitBar } from "@/components/DigitollSubmit";
+import { useDigitollSubmit } from "@/components/DigitollSubmit";
 
 interface Transport { id: string; state_id: string | null; reference: string | null; }
 interface House {
@@ -27,16 +27,7 @@ interface Master {
   state_id: string | null;
   reference: string | null;
   transport_id: string | null;
-  consignor: string | null;
-  consignee: string | null;
-  incoterm: string | null;
-  incoterm_place: string | null;
-  invoice_number: string | null;
-  invoice_date: string | null;
-  invoice_value: string | null;
-  currency: string | null;
   gross_weight: string | null;
-  net_weight: string | null;
   document_number: string | null;
   document_type: string | null;
   carrier_id: string | null;
@@ -86,7 +77,7 @@ function QuickViewModal({ type, id, label, onClose }: { type: string; id: string
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 540, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Header */}
         <div style={{ padding: "14px 20px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -140,14 +131,11 @@ function RefBadge({ label, color, bg, onClick }: { label: string; color: string;
 }
 function calcMasterStatus(m: Master): string {
   const hasRequired = !!(
-    m.consignor && m.consignee && m.document_number && m.document_type &&
+    m.document_number && m.document_type &&
     m.gross_weight && m.transport_equipment && m.loading_location && m.unloading_location
   );
-  const hasHouses = (m.houses?.length ?? 0) > 0;
-  if (!hasRequired || !hasHouses) return "incomplete";
-  const housesReady = m.houses!.every(h => calcHouseStatus(h) === "ready");
-  if (housesReady) return "ready";
-  return "incomplete";
+  if (!hasRequired) return "incomplete";
+  return "ready";
 }
 
 function calcHouseStatus(h: House): string {
@@ -174,15 +162,14 @@ function fmtDate(s: string | null) {
 
 type ModalType = "new" | "edit" | "view" | null;
 type Form = {
-  reference: string; transport_id: string; consignor: string; consignee: string;
-  incoterm: string; incoterm_place: string; invoice_number: string; invoice_date: string;
-  invoice_value: string; currency: string; gross_weight: string; net_weight: string; status: string;
+  reference: string; transport_id: string;
+  gross_weight: string; status: string;
   document_number: string; document_type: string; carrier_id: string;
   transport_equipment: string; loading_location: string; unloading_location: string; relevant_documents: string;
 };
 const emptyForm: Form = {
-  reference: "", transport_id: "", consignor: "", consignee: "", incoterm: "", incoterm_place: "",
-  invoice_number: "", invoice_date: "", invoice_value: "", currency: "EUR", gross_weight: "", net_weight: "", status: "incomplete",
+  reference: "", transport_id: "",
+  gross_weight: "", status: "incomplete",
   document_number: "", document_type: "", carrier_id: "",
   transport_equipment: "", loading_location: "", unloading_location: "", relevant_documents: "",
 };
@@ -262,9 +249,14 @@ export default function MasterPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [m, t] = await Promise.all([fetch("/api/masters").then(r => r.json()), fetch("/api/transports").then(r => r.json())]);
-    if (Array.isArray(m)) setRecords(m);
-    if (Array.isArray(t)) setTransports(t);
+    try {
+      const [mRes, tRes] = await Promise.all([fetch("/api/masters"), fetch("/api/transports")]);
+      const [m, t] = await Promise.all([mRes.json(), tRes.json()]);
+      if (Array.isArray(m)) setRecords(m);
+      if (Array.isArray(t)) setTransports(t);
+    } catch (e) {
+      console.error("Failed to load masters/transports:", e);
+    }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -309,16 +301,12 @@ export default function MasterPage() {
     setAddingHouse(false);
     setNewHouseForm({ exporter: "", importer: "", goods_description: "", hs_code: "", gross_weight: "", packages: "", customs_status: "pending" });
     // Ladda alla houses för "link existing"-dropdown
-    fetch("/api/houses").then(r => r.json()).then(data => { if (Array.isArray(data)) setAllHouses(data); });
+    fetch("/api/houses").then(r => r.ok ? r.json() : []).then(data => { if (Array.isArray(data)) setAllHouses(data); }).catch(() => {});
   }
   function openEdit(r: Master) {
     setForm({
       reference: r.reference ?? "", transport_id: r.transport_id ?? "",
-      consignor: r.consignor ?? "", consignee: r.consignee ?? "",
-      incoterm: r.incoterm ?? "", incoterm_place: r.incoterm_place ?? "",
-      invoice_number: r.invoice_number ?? "", invoice_date: r.invoice_date ?? "",
-      invoice_value: r.invoice_value ?? "", currency: r.currency ?? "EUR",
-      gross_weight: r.gross_weight ?? "", net_weight: r.net_weight ?? "", status: r.status,
+      gross_weight: r.gross_weight ?? "", status: r.status,
       document_number: r.document_number ?? "", document_type: r.document_type ?? "",
       carrier_id: r.carrier_id ?? "", transport_equipment: r.transport_equipment ?? "",
       loading_location: r.loading_location ?? "", unloading_location: r.unloading_location ?? "",
@@ -340,6 +328,8 @@ export default function MasterPage() {
       if (res.ok) { const full = await res.json(); setActive(full); setHierarchyNodes(nodesFromDetail("master", full)); }
     }
   }
+
+  const { onSubmitNode, onSubmitAll, modals: submitModals } = useDigitollSubmit(hierarchyNodes, refreshOpen);
 
   async function save() {
     setSaving(true);
@@ -391,26 +381,8 @@ export default function MasterPage() {
           </select>
         </div>
       </div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Parties</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div><FL required>Consignor (exporter)</FL><input style={inp} value={form.consignor} onChange={e => setForm(f => ({ ...f, consignor: e.target.value }))} placeholder="Company name" /></div>
-        <div><FL required>Consignee (importer)</FL><input style={inp} value={form.consignee} onChange={e => setForm(f => ({ ...f, consignee: e.target.value }))} placeholder="Company name" /></div>
-      </div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Transport</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div><FL>Incoterm</FL><input style={inp} value={form.incoterm} onChange={e => setForm(f => ({ ...f, incoterm: e.target.value }))} placeholder="DAP, FOB, CIF…" /></div>
-        <div><FL>Incoterm place</FL><input style={inp} value={form.incoterm_place} onChange={e => setForm(f => ({ ...f, incoterm_place: e.target.value }))} placeholder="Oslo, Norway" /></div>
-      </div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Invoice & Value</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-        <div><FL>Invoice no.</FL><input style={inp} value={form.invoice_number} onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="INV-2026-001" /></div>
-        <div><FL>Invoice date</FL><input style={inp} type="date" value={form.invoice_date} onChange={e => setForm(f => ({ ...f, invoice_date: e.target.value }))} /></div>
-        <div><FL>Invoice value</FL><input style={inp} value={form.invoice_value} onChange={e => setForm(f => ({ ...f, invoice_value: e.target.value }))} placeholder="12500.00" /></div>
-        <div><FL>Currency</FL><input style={inp} value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} placeholder="EUR" /></div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div><FL>Gross weight (kg)</FL><input style={inp} value={form.gross_weight} onChange={e => setForm(f => ({ ...f, gross_weight: e.target.value }))} placeholder="1240.00" /></div>
-        <div><FL>Net weight (kg)</FL><input style={inp} value={form.net_weight} onChange={e => setForm(f => ({ ...f, net_weight: e.target.value }))} placeholder="1108.50" /></div>
       </div>
 
       {/* Consignment note */}
@@ -451,22 +423,18 @@ export default function MasterPage() {
 
       {(modal === "new" || modal === "edit") && (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: modal === "edit" ? 780 : 620, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header */}
             <div style={{ padding: "16px 22px 14px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{modal === "new" ? "New Master" : `Master — ${active?.state_id ?? ""}`}</div>
-                {modal === "edit" && active?.consignor && <div style={{ fontSize: 12, color: "#667085", marginTop: 2 }}>{active.consignor} → {active.consignee}</div>}
               </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
 
             {/* Hierarchy bar */}
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
-            )}
-            {modal === "edit" && hierarchyNodes.length > 0 && (
-              <DigitollSubmitBar nodes={hierarchyNodes} currentType="master" onDone={refreshOpen} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNode} />
             )}
 
             {/* Content */}
@@ -595,7 +563,12 @@ export default function MasterPage() {
 
             {/* Footer */}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              {modal === "edit" && active && <StatusPill status={calcMasterStatus(active)} />}
+              {modal === "edit" && hierarchyNodes.length > 0 ? (
+                <button onClick={onSubmitAll} style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: "#003160", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
+                  Submit all
+                </button>
+              ) : (modal === "edit" && active ? <StatusPill status={calcMasterStatus(active)} /> : <span />)}
               <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
                 <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>
                   {modal === "edit" ? "Close" : "Cancel"}
@@ -613,32 +586,29 @@ export default function MasterPage() {
       {/* View modal */}
       {modal === "view" && active && (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 580, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "14px 22px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 2 }}>Master</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>{active.state_id ?? active.reference ?? "—"}</div>
-                {active.consignor && <div style={{ fontSize: 12, color: "#667085", marginTop: 2 }}>{active.consignor} → {active.consignee}</div>}
               </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
-            {hierarchyNodes.length > 0 && <DigitollSubmitBar nodes={hierarchyNodes} currentType="master" onDone={refreshOpen} />}
+            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNode} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
                 <div>
-                  <DetailRow label="Master No"     value={active.state_id} />
-                  <DetailRow label="Transport"     value={active.transports ? <RefBadge label={active.transports.state_id ?? active.transports.reference ?? "—"} color="#175CD3" bg="#EFF8FF" onClick={() => setQuickView({ type: "transport", id: active.transports!.id, label: active.transports!.state_id ?? "—" })} /> : null} />
-                  <DetailRow label="Consignor"     value={active.consignor} />
-                  <DetailRow label="Consignee"     value={active.consignee} />
-                  <DetailRow label="Incoterm"      value={active.incoterm ? `${active.incoterm} ${active.incoterm_place ?? ""}` : null} />
+                  <DetailRow label="Master No"    value={active.state_id} />
+                  <DetailRow label="Transport"    value={active.transports ? <RefBadge label={active.transports.state_id ?? active.transports.reference ?? "—"} color="#175CD3" bg="#EFF8FF" onClick={() => setQuickView({ type: "transport", id: active.transports!.id, label: active.transports!.state_id ?? "—" })} /> : null} />
+                  <DetailRow label="Waybill no."  value={active.document_number} />
+                  <DetailRow label="Doc type"     value={active.document_type} />
+                  <DetailRow label="Carrier ID"   value={active.carrier_id} />
                 </div>
                 <div>
-                  <DetailRow label="Invoice no."   value={active.invoice_number} />
-                  <DetailRow label="Invoice date"  value={fmtDate(active.invoice_date)} />
-                  <DetailRow label="Invoice value" value={active.invoice_value ? `${active.currency ?? ""} ${active.invoice_value}` : null} />
-                  <DetailRow label="Gross weight"  value={active.gross_weight ? `${active.gross_weight} kg` : null} />
-                  <DetailRow label="Net weight"    value={active.net_weight ? `${active.net_weight} kg` : null} />
+                  <DetailRow label="Gross weight"       value={active.gross_weight ? `${active.gross_weight} kg` : null} />
+                  <DetailRow label="Loading location"   value={active.loading_location} />
+                  <DetailRow label="Unloading location" value={active.unloading_location} />
+                  <DetailRow label="Equipment"          value={active.transport_equipment} />
                 </div>
               </div>
               <DetailRow label="Status" value={<StatusPill status={calcMasterStatus(active)} />} />
@@ -653,15 +623,25 @@ export default function MasterPage() {
                   : null
               } />
             </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
-              <button onClick={() => openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
+            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              {hierarchyNodes.length > 0 ? (
+                <button onClick={onSubmitAll} style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: "#003160", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
+                  Submit all
+                </button>
+              ) : <span />}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
+                <button onClick={() => openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {quickView && <QuickViewModal type={quickView.type} id={quickView.id} label={quickView.label} onClose={() => setQuickView(null)} />}
+
+      {submitModals}
 
       {/* Filter bar */}
       <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
@@ -699,7 +679,7 @@ export default function MasterPage() {
                   {selected.size > 0 && selected.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
                 </div>
               </th>
-              {["Master No","Transport","Consignor","Consignee","Waybill No","Route","Houses","Status",""].map((h, i) => (
+              {["Master No","Transport","Waybill No","Route","Houses","Status",""].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
@@ -730,8 +710,6 @@ export default function MasterPage() {
                         onClick={() => setQuickView({ type: "transport", id: r.transports!.id, label: r.transports!.state_id ?? r.transports!.reference ?? "—" })} />
                     : <span style={{ color: "#D0D5DD", fontSize: 11.5 }}>Not linked</span>}
                 </td>
-                <td style={{ padding: "9px 12px", color: "#344054" }}>{r.consignor ?? "—"}</td>
-                <td style={{ padding: "9px 12px", color: "#344054" }}>{r.consignee ?? "—"}</td>
                 <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>{r.document_number ?? <span style={{ color: "#D0D5DD" }}>—</span>}</td>
                 <td style={{ padding: "9px 12px", color: "#667085", fontSize: 12 }}>
                   {r.loading_location && r.unloading_location

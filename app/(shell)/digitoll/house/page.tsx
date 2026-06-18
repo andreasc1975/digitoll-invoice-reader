@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
-import { DigitollSubmitBar } from "@/components/DigitollSubmit";
+import { useDigitollSubmit } from "@/components/DigitollSubmit";
 
 interface Master { id: string; state_id: string | null; reference: string | null; transports?: { id: string; state_id: string | null; reference: string | null } | null; }
 interface House {
@@ -76,7 +76,7 @@ function QuickViewModal({ type, id, label, onClose }: { type: string; id: string
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 540, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Header */}
         <div style={{ padding: "14px 20px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -205,10 +205,15 @@ export default function HousePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [h, m, t] = await Promise.all([fetch("/api/houses").then(r => r.json()), fetch("/api/masters").then(r => r.json()), fetch("/api/transports").then(r => r.json())]);
-    if (Array.isArray(h)) setRecords(h);
-    if (Array.isArray(m)) setMasters(m);
-    if (Array.isArray(t)) setTransports(t);
+    try {
+      const [hRes, mRes, tRes] = await Promise.all([fetch("/api/houses"), fetch("/api/masters"), fetch("/api/transports")]);
+      const [h, m, t] = await Promise.all([hRes.json(), mRes.json(), tRes.json()]);
+      if (Array.isArray(h)) setRecords(h);
+      if (Array.isArray(m)) setMasters(m);
+      if (Array.isArray(t)) setTransports(t);
+    } catch (e) {
+      console.error("Failed to load houses/masters/transports:", e);
+    }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -272,6 +277,8 @@ export default function HousePage() {
       if (res.ok) { const full = await res.json(); setActive(full); setHierarchyNodes(nodesFromDetail("house", full)); }
     }
   }
+
+  const { onSubmitNode, onSubmitAll, modals: submitModals } = useDigitollSubmit(hierarchyNodes, refreshOpen);
 
   async function save() {
     setSaving(true);
@@ -452,23 +459,28 @@ export default function HousePage() {
 
       {(modal === "new" || modal === "edit") && (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 620, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "16px 22px 14px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{modal === "new" ? "New House" : `Edit House — ${active?.state_id ?? ""}`}</div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
-            )}
-            {modal === "edit" && hierarchyNodes.length > 0 && (
-              <DigitollSubmitBar nodes={hierarchyNodes} currentType="house" onDone={refreshOpen} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNode} />
             )}
             {houseFormJSX}
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "Saving…" : modal === "new" ? "Create" : "Save changes"}
-              </button>
+            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              {modal === "edit" && hierarchyNodes.length > 0 ? (
+                <button onClick={onSubmitAll} style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: "#003160", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
+                  Submit all
+                </button>
+              ) : <span />}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
+                <button onClick={save} disabled={saving} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
+                  {saving ? "Saving…" : modal === "new" ? "Create" : "Save changes"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -477,7 +489,7 @@ export default function HousePage() {
       {/* View modal */}
       {modal === "view" && active && (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "14px 22px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 2 }}>House</div>
@@ -486,8 +498,7 @@ export default function HousePage() {
               </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
-            {hierarchyNodes.length > 0 && <DigitollSubmitBar nodes={hierarchyNodes} currentType="house" onDone={refreshOpen} />}
+            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNode} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <DetailRow label="House No"          value={active.state_id} />
               <DetailRow label="Completion"        value={<CompletionPill house={active} />} />
@@ -503,15 +514,25 @@ export default function HousePage() {
               <DetailRow label="Packages"          value={active.packages} />
               <DetailRow label="Source"            value={<SourceBadge source={active.source} />} />
             </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
-              <button onClick={() => openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
+            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              {hierarchyNodes.length > 0 ? (
+                <button onClick={onSubmitAll} style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: "#003160", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
+                  Submit all
+                </button>
+              ) : <span />}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
+                <button onClick={() => openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {quickView && <QuickViewModal type={quickView.type} id={quickView.id} label={quickView.label} onClose={() => setQuickView(null)} />}
+
+      {submitModals}
 
       {/* Filter bar */}
       <div style={{ padding: "14px 20px 0", background: "#fff", borderBottom: "1px solid #E4E7EC" }}>
