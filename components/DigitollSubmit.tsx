@@ -127,7 +127,7 @@ export function useDigitollSubmit(nodes: HNode[], onDone: () => void) {
   const [pendingTargets, setPendingTargets] = React.useState<HNode[] | null>(null);
   const [receipt, setReceipt] = React.useState<{ label: string; mrn: string }[] | null>(null);
 
-  function onSubmitNode(n: HNode) { setPendingTargets([n]); }
+  function onSubmitNodes(ns: HNode[]) { setPendingTargets(ns); }
   function onSubmitAll()          { setPendingTargets(nodes); }
 
   function handleDone(results: { label: string; mrn: string }[]) {
@@ -151,13 +151,13 @@ export function useDigitollSubmit(nodes: HNode[], onDone: () => void) {
     </>
   );
 
-  return { onSubmitNode, onSubmitAll, modals };
+  return { onSubmitNodes, onSubmitAll, modals };
 }
 
 // Legacy export kept so existing pages compile without changes until they're updated.
 export function DigitollSubmitBar({ nodes, currentType, onDone }: { nodes: HNode[]; currentType: "transport" | "master" | "house"; onDone: () => void }) {
-  const { onSubmitNode: _n, onSubmitAll, modals } = useDigitollSubmit(nodes, onDone);
-  void _n; void currentType;
+  const { onSubmitNodes, onSubmitAll, modals } = useDigitollSubmit(nodes, onDone);
+  void onSubmitNodes; void currentType;
   return (
     <>
       <div style={{ padding: "10px 20px", background: "#fff", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", gap: 10 }}>

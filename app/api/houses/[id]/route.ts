@@ -11,14 +11,21 @@ const ALLOWED = [
   "digitoll_status", "mrn", "submitted_at",
 ];
 
+const HOUSE_FIELDS = "id, state_id, reference, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status";
+const TRANSPORT_FIELDS = "id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status";
+const MASTER_FIELDS = "id, state_id, reference, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, digitoll_status";
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = supabaseAdmin();
+
+  // Fetch the house with its master + transport links
   const { data, error } = await db
     .from("houses")
-    .select("*, masters(id, state_id, reference, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, digitoll_status, transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status)), transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status)")
+    .select(`*, masters(${MASTER_FIELDS}, transports(${TRANSPORT_FIELDS}), houses(${HOUSE_FIELDS})), transports(${TRANSPORT_FIELDS}, houses(${HOUSE_FIELDS}))`)
     .eq("id", id)
     .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }

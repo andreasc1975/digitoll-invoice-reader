@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
+import { HNode, HierarchyTable, nodesFromDetail, canSubmitNode } from "@/components/Hierarchy";
 import { useDigitollSubmit } from "@/components/DigitollSubmit";
 
 interface Master { id: string; state_id: string | null; reference: string | null; transports?: { id: string; state_id: string | null; reference: string | null } | null; }
@@ -254,7 +254,7 @@ export default function HousePage() {
   function openNew() { setForm(emptyForm); setActive(null); setModal("new"); }
   function openEdit(r: House) {
     setForm({
-      reference: r.reference ?? "", master_id: r.master_id ?? "", transport_id: "",
+      reference: r.reference ?? "", master_id: r.master_id ?? "", transport_id: r.transport_id ?? "",
       create_transport: false, transport_mode: "Road", border_crossing: "", carrier: "", eta: "",
       exporter: r.exporter ?? "", importer: r.importer ?? "", importer_org_no: r.importer_org_no ?? "",
       goods_description: r.goods_description ?? "", hs_code: r.hs_code ?? "",
@@ -278,7 +278,7 @@ export default function HousePage() {
     }
   }
 
-  const { onSubmitNode, onSubmitAll, modals: submitModals } = useDigitollSubmit(hierarchyNodes, refreshOpen);
+  const { onSubmitNodes, modals: submitModals } = useDigitollSubmit(hierarchyNodes, refreshOpen);
 
   async function save() {
     setSaving(true);
@@ -465,16 +465,11 @@ export default function HousePage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNode} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />
             )}
             {houseFormJSX}
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              {modal === "edit" && hierarchyNodes.length > 0 ? (
-                <button onClick={onSubmitAll} style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: "#003160", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
-                  Submit all
-                </button>
-              ) : <span />}
+            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              {}
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
                 <button onClick={save} disabled={saving} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
@@ -498,7 +493,7 @@ export default function HousePage() {
               </div>
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNode} />}
+            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <DetailRow label="House No"          value={active.state_id} />
               <DetailRow label="Completion"        value={<CompletionPill house={active} />} />
@@ -514,13 +509,8 @@ export default function HousePage() {
               <DetailRow label="Packages"          value={active.packages} />
               <DetailRow label="Source"            value={<SourceBadge source={active.source} />} />
             </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              {hierarchyNodes.length > 0 ? (
-                <button onClick={onSubmitAll} style={{ padding: "7px 14px", borderRadius: 2, border: "none", background: "#003160", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
-                  Submit all
-                </button>
-              ) : <span />}
+            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              {}
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
                 <button onClick={() => openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>

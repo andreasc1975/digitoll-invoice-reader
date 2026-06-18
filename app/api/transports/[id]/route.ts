@@ -8,12 +8,15 @@ const ALLOWED = [
   "operator_name", "operator_id", "customs_office", "digitoll_status",
 ];
 
+const MASTER_FIELDS = "id, state_id, reference, status, digitoll_status, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location";
+const HOUSE_FIELDS  = "id, state_id, reference, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status";
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("transports")
-    .select("*, masters(id, state_id, reference, status, digitoll_status, document_number, document_type, gross_weight, transport_equipment, loading_location, unloading_location, houses(id, state_id, goods_description, hs_code, gross_weight, exporter, importer, customs_status, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status))")
+    .select(`*, masters(${MASTER_FIELDS}, houses(${HOUSE_FIELDS})), houses(${HOUSE_FIELDS})`)
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
