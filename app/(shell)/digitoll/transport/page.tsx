@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail, canSubmitNode } from "@/components/Hierarchy";
+import { HierarchyModal } from "@/components/HierarchyModal";
 import { useDigitollSubmit } from "@/components/DigitollSubmit";
 
 interface Transport {
@@ -376,7 +377,7 @@ export default function TransportPage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => setQuickView({ type: n.type as 'transport' | 'master' | 'house', id: n.id, label: n.label })} onSubmit={onSubmitNodes} />
             )}
             {modalFormJSX}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -394,54 +395,12 @@ export default function TransportPage() {
 
       {/* View modal */}
       {modal === "view" && active && (
-        <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "14px 22px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 2 }}>Transport</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>{active.state_id ?? active.reference ?? "—"}</div>
-              </div>
-              <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-            </div>
-            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />}
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px", display: "flex", flexDirection: "column", gap: 0 }}>
-              <DetailRow label="Transport No"       value={active.state_id} />
-              <DetailRow label="Mode"               value={active.transport_mode} />
-              <DetailRow label="Identification No"  value={active.identification_number} />
-              <DetailRow label="ID type"            value={active.type_of_identification} />
-              <DetailRow label="Carrier ref."       value={active.carrier} />
-              <DetailRow label="Conveyance ref."    value={active.conveyance_reference_number} />
-              <DetailRow label="Operator"           value={active.operator_name} />
-              <DetailRow label="Operator ID"        value={active.operator_id} />
-              <DetailRow label="Border crossing"    value={active.border_crossing} />
-              <DetailRow label="Customs office"     value={active.customs_office} />
-              <DetailRow label="Scheduled arrival"  value={fmtDate(active.scheduled_arrival)} />
-              <DetailRow label="ETA"                value={fmtDate(active.eta)} />
-              <DetailRow label="ATA"                value={fmtDate(active.ata)} />
-              <DetailRow label="Source"             value={<SourceBadge source={active.source} />} />
-              <DetailRow label="Status"             value={<StatusPill status={calcTransportStatus(active)} />} />
-              {active.mrn && <DetailRow label="MRN" value={<span style={{ fontWeight: 700, letterSpacing: ".06em", color: "#003160" }}>{active.mrn}</span>} />}
-              {active.submitted_at && <DetailRow label="Submitted" value={fmtDate(active.submitted_at)} />}
-              <DetailRow label="Masters"         value={
-                active.masters && active.masters.length > 0
-                  ? <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const }}>
-                      {active.masters.map(m => (
-                        <RefBadge key={m.id} label={m.state_id ?? m.reference ?? "—"} color="#175CD3" bg="#EFF8FF"
-                          onClick={() => setQuickView({ type: "master", id: m.id, label: m.state_id ?? m.reference ?? "—" })} />
-                      ))}
-                    </div>
-                  : null
-              } />
-            </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              {}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
-                <button onClick={() => active && openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <HierarchyModal
+          type="transport"
+          id={active.id}
+          onClose={() => setModal(null)}
+          onEdit={(id: string) => { const r = records.find(r => r.id === id); if (r) openEdit(r); else setModal(null); }}
+        />
       )}
 
       {/* Filter bar */}

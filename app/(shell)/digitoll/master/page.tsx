@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail, canSubmitNode } from "@/components/Hierarchy";
+import { HierarchyModal } from "@/components/HierarchyModal";
 import { useDigitollSubmit } from "@/components/DigitollSubmit";
 
 interface Transport { id: string; state_id: string | null; reference: string | null; }
@@ -434,7 +435,7 @@ export default function MasterPage() {
 
             {/* Hierarchy bar */}
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => setQuickView({ type: n.type as 'transport' | 'master' | 'house', id: n.id, label: n.label })} onSubmit={onSubmitNodes} />
             )}
 
             {/* Content */}
@@ -573,7 +574,16 @@ export default function MasterPage() {
         </div>
       )}
 
-      {quickView && <QuickViewModal type={quickView.type} id={quickView.id} label={quickView.label} onClose={() => setQuickView(null)} />}
+      {quickView && <HierarchyModal type={quickView.type as "transport" | "master" | "house"} id={quickView.id} onClose={() => setQuickView(null)} onEdit={() => setQuickView(null)} />}
+
+      {modal === "view" && active && (
+        <HierarchyModal
+          type="master"
+          id={active.id}
+          onClose={() => setModal(null)}
+          onEdit={(id: string) => { const r = records.find(r => r.id === id); if (r) openEdit(r); else setModal(null); }}
+        />
+      )}
 
       {submitModals}
 

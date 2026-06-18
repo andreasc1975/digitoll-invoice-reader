@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail, canSubmitNode } from "@/components/Hierarchy";
+import { HierarchyModal } from "@/components/HierarchyModal";
 import { useDigitollSubmit } from "@/components/DigitollSubmit";
 
 interface Master { id: string; state_id: string | null; reference: string | null; transports?: { id: string; state_id: string | null; reference: string | null } | null; }
@@ -465,7 +466,7 @@ export default function HousePage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {modal === "edit" && hierarchyNodes.length > 0 && (
-              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />
+              <HierarchyTable nodes={hierarchyNodes} onNavigate={n => setQuickView({ type: n.type as 'transport' | 'master' | 'house', id: n.id, label: n.label })} onSubmit={onSubmitNodes} />
             )}
             {houseFormJSX}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -483,44 +484,15 @@ export default function HousePage() {
 
       {/* View modal */}
       {modal === "view" && active && (
-        <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 740, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "14px 22px 12px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 2 }}>House</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>{active.state_id ?? active.reference ?? "—"}</div>
-                {active.goods_description && <div style={{ fontSize: 12, color: "#667085", marginTop: 2 }}>{active.goods_description}</div>}
-              </div>
-              <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-            </div>
-            {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} onSubmit={onSubmitNodes} />}
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
-              <DetailRow label="House No"          value={active.state_id} />
-              <DetailRow label="Completion"        value={<CompletionPill house={active} />} />
-              <DetailRow label="Customs status"    value={<StatusPill status={active.customs_status} />} />
-              <DetailRow label="Exporter"          value={active.exporter} />
-              <DetailRow label="Importer"          value={active.importer} />
-              <DetailRow label="Importer org.no"   value={active.importer_org_no} />
-              <DetailRow label="Goods"             value={active.goods_description} />
-              <DetailRow label="HS code"           value={active.hs_code} />
-              <DetailRow label="Country of origin" value={active.country_origin} />
-              <DetailRow label="Gross weight"      value={active.gross_weight ? `${active.gross_weight} kg` : null} />
-              <DetailRow label="Net weight"        value={active.net_weight ? `${active.net_weight} kg` : null} />
-              <DetailRow label="Packages"          value={active.packages} />
-              <DetailRow label="Source"            value={<SourceBadge source={active.source} />} />
-            </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              {}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
-                <button onClick={() => active && openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <HierarchyModal
+          type="house"
+          id={active.id}
+          onClose={() => setModal(null)}
+          onEdit={(id: string) => { const r = records.find(r => r.id === id); if (r) openEdit(r); else setModal(null); }}
+        />
       )}
 
-      {quickView && <QuickViewModal type={quickView.type} id={quickView.id} label={quickView.label} onClose={() => setQuickView(null)} />}
+      {quickView && <HierarchyModal type={quickView.type as "transport" | "master" | "house"} id={quickView.id} onClose={() => setQuickView(null)} onEdit={() => setQuickView(null)} />}
 
       {submitModals}
 
