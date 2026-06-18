@@ -11,6 +11,7 @@ export type HNode = {
   active: boolean;
   identifier?: string | null;
   parties?: string | null;
+  digitoll?: string | null;
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -27,6 +28,13 @@ const STATUS_LABEL: Record<string, string> = {
   ready: "Ready", incomplete: "Incomplete", sent: "Sent", received: "Received",
   accepted: "Accepted", rejected: "Rejected", arrived: "Arrived",
   pending: "Pending", cleared: "Cleared", held: "Held",
+};
+
+const DIGITOLL: Record<string, { label: string; dot: string; color: string }> = {
+  not_sent: { label: "Not sent", dot: "#D0D5DD", color: "#98A2B3" },
+  sent:     { label: "Sent",     dot: "#2E90FA", color: "#175CD3" },
+  accepted: { label: "Accepted", dot: "#12B76A", color: "#027A48" },
+  rejected: { label: "Rejected", dot: "#F04438", color: "#B42318" },
 };
 
 export function statusDot(status: string): string {
@@ -69,7 +77,7 @@ function nodeStatus(type: string, d: Record<string, unknown>): string {
 
 function nodeFrom(type: "transport" | "master" | "house", d: Record<string, unknown>, active: boolean): HNode {
   const label = (d.state_id as string) ?? (d.reference as string) ?? TYPE_LABEL[type];
-  const base = { type, id: d.id as string, label, status: nodeStatus(type, d), active };
+  const base = { type, id: d.id as string, label, status: nodeStatus(type, d), active, digitoll: (d.digitoll_status as string) ?? "not_sent" };
   if (type === "transport") return { ...base, identifier: (d.identification_number as string) ?? null, parties: (d.operator_name as string) ?? null };
   if (type === "master")    return { ...base, identifier: (d.document_number as string) ?? null, parties: partyLine(d.consignor, d.consignee) };
   return { ...base, identifier: (d.tracking_number as string) ?? null, parties: partyLine(d.exporter, d.importer) };
@@ -109,7 +117,7 @@ export function HierarchyTable({ nodes, onNavigate }: { nodes: HNode[]; onNaviga
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
         <thead>
           <tr>
-            {["Level", "No.", "Identifier", "Parties", "Status"].map(h => (
+            {["Level", "No.", "Identifier", "Parties", "Status", "Digitoll"].map(h => (
               <th key={h} style={{ textAlign: "left", fontSize: 9.5, fontWeight: 700, color: "#98A2B3", letterSpacing: ".04em", textTransform: "uppercase" as const, padding: "0 10px 6px 0", whiteSpace: "nowrap" as const }}>{h}</th>
             ))}
           </tr>
@@ -119,6 +127,7 @@ export function HierarchyTable({ nodes, onNavigate }: { nodes: HNode[]; onNaviga
             const color = TYPE_COLOR[n.type];
             const depth = depthForType(n.type);
             const dot = statusDot(n.status);
+            const dg = DIGITOLL[n.digitoll ?? "not_sent"] ?? DIGITOLL.not_sent;
             return (
               <tr key={n.id} onClick={() => onNavigate(n)}
                 style={{ cursor: "pointer", background: n.active ? "#EDF0F3" : "transparent" }}
@@ -138,6 +147,12 @@ export function HierarchyTable({ nodes, onNavigate }: { nodes: HNode[]; onNaviga
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />
                     <span style={{ color: "#667085" }}>{STATUS_LABEL[n.status] ?? n.status}</span>
+                  </span>
+                </td>
+                <td style={{ padding: "5px 10px", whiteSpace: "nowrap" as const }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: dg.dot, flexShrink: 0 }} />
+                    <span style={{ color: dg.color }}>{dg.label}</span>
                   </span>
                 </td>
               </tr>

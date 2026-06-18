@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
+import { DigitollSubmitBar } from "@/components/DigitollSubmit";
 
 interface Master { id: string; state_id: string | null; reference: string | null; transports?: { id: string; state_id: string | null; reference: string | null } | null; }
 interface House {
@@ -264,6 +265,14 @@ export default function HousePage() {
   }
   function openView(r: House) { setActive(r); setModal("view"); buildHouseHierarchy(r); }
 
+  async function refreshOpen() {
+    await load();
+    if (active) {
+      const res = await fetch(`/api/houses/${active.id}`);
+      if (res.ok) { const full = await res.json(); setActive(full); setHierarchyNodes(nodesFromDetail("house", full)); }
+    }
+  }
+
   async function save() {
     setSaving(true);
     let masterId = form.master_id || null;
@@ -451,6 +460,9 @@ export default function HousePage() {
             {modal === "edit" && hierarchyNodes.length > 0 && (
               <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
             )}
+            {modal === "edit" && hierarchyNodes.length > 0 && (
+              <DigitollSubmitBar nodes={hierarchyNodes} currentType="house" onDone={refreshOpen} />
+            )}
             {houseFormJSX}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
@@ -475,6 +487,7 @@ export default function HousePage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
+            {hierarchyNodes.length > 0 && <DigitollSubmitBar nodes={hierarchyNodes} currentType="house" onDone={refreshOpen} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <DetailRow label="House No"          value={active.state_id} />
               <DetailRow label="Completion"        value={<CompletionPill house={active} />} />

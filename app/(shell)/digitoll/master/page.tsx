@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
+import { DigitollSubmitBar } from "@/components/DigitollSubmit";
 
 interface Transport { id: string; state_id: string | null; reference: string | null; }
 interface House {
@@ -332,6 +333,14 @@ export default function MasterPage() {
   }
   function openView(r: Master) { setActive(r); setModal("view"); buildMasterHierarchy(r); loadHousesForMaster(r.id); }
 
+  async function refreshOpen() {
+    await load();
+    if (active) {
+      const res = await fetch(`/api/masters/${active.id}`);
+      if (res.ok) { const full = await res.json(); setActive(full); setHierarchyNodes(nodesFromDetail("master", full)); }
+    }
+  }
+
   async function save() {
     setSaving(true);
     const body = { ...form, transport_id: form.transport_id || null };
@@ -455,6 +464,9 @@ export default function MasterPage() {
             {/* Hierarchy bar */}
             {modal === "edit" && hierarchyNodes.length > 0 && (
               <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
+            )}
+            {modal === "edit" && hierarchyNodes.length > 0 && (
+              <DigitollSubmitBar nodes={hierarchyNodes} currentType="master" onDone={refreshOpen} />
             )}
 
             {/* Content */}
@@ -611,6 +623,7 @@ export default function MasterPage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
+            {hierarchyNodes.length > 0 && <DigitollSubmitBar nodes={hierarchyNodes} currentType="master" onDone={refreshOpen} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
                 <div>

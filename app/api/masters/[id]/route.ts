@@ -7,6 +7,7 @@ const ALLOWED = [
   "invoice_value", "currency", "gross_weight", "net_weight", "status",
   "document_number", "document_type", "carrier_id",
   "transport_equipment", "loading_location", "unloading_location", "relevant_documents",
+  "digitoll_status", "mrn", "submitted_at",
 ];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("masters")
-    .select("*, transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn), houses!houses_master_id_fkey(id, state_id, reference, customs_status, goods_description, hs_code, gross_weight, exporter, importer, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location)")
+    .select("*, transports(id, state_id, reference, identification_number, type_of_identification, operator_name, transport_mode, border_crossing, customs_office, scheduled_arrival, eta, ata, status, mrn, digitoll_status), houses!houses_master_id_fkey(id, state_id, reference, customs_status, goods_description, hs_code, gross_weight, exporter, importer, tracking_number, customs_procedure, transport_equipment, loading_location, unloading_location, digitoll_status)")
     .eq("id", id)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

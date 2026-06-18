@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { HNode, HierarchyTable, nodesFromDetail } from "@/components/Hierarchy";
+import { DigitollSubmitBar } from "@/components/DigitollSubmit";
 
 interface Transport {
   id: string;
@@ -19,6 +20,7 @@ interface Transport {
   operator_id: string | null;
   customs_office: string | null;
   status: string;
+  digitoll_status: string;
   source: string;
   tms_trip_ref: string | null;
   created_at: string;
@@ -129,7 +131,6 @@ function RefBadge({ label, color, bg, onClick }: { label: string; color: string;
 }
 
 function calcTransportStatus(t: Transport): string {
-  if (t.status === "sent" || t.status === "received" || t.status === "accepted") return t.status;
   if (t.ata) return "arrived";
   const hasRequired = !!(
     t.border_crossing && t.transport_mode &&
@@ -190,32 +191,11 @@ export default function TransportPage() {
   const [form, setForm]             = useState<Form>(emptyForm);
   const [saving, setSaving]         = useState(false);
 
-  const [submitTarget, setSubmitTarget] = useState<Transport | null>(null);
-  const [submitting, setSubmitting]     = useState(false);
-  const [submitDone, setSubmitDone]     = useState<{ mrn: string; transport: Transport } | null>(null);
   const [quickView, setQuickView]       = useState<QuickView | null>(null);
   const [hierarchyNodes, setHierarchyNodes] = useState<HNode[]>([]);
 
   function buildTransportHierarchy(t: Transport) {
     setHierarchyNodes(nodesFromDetail("transport", t as unknown as Record<string, unknown>));
-  }
-
-  async function submitToDigitoll(t: Transport) {
-    setSubmitting(true);
-    // Simulera nätverksanrop 1.5s
-    await new Promise(res => setTimeout(res, 1500));
-    // Generera falskt MRN
-    const mrn = `22NO${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    // Spara status + MRN på transport
-    await fetch(`/api/transports/${t.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "sent", mrn, submitted_at: new Date().toISOString() }),
-    });
-    setSubmitting(false);
-    setSubmitTarget(null);
-    setSubmitDone({ mrn, transport: t });
-    load();
   }
 
   const load = useCallback(async () => {
@@ -246,7 +226,7 @@ export default function TransportPage() {
     if (search && !JSON.stringify(r).toLowerCase().includes(search.toLowerCase())) return false;
     if (filter === "incomplete") return calcTransportStatus(r) === "incomplete";
     if (filter === "ready")      return calcTransportStatus(r) === "ready";
-    if (filter === "sent")       return ["sent","received","accepted"].includes(r.status);
+    if (filter === "sent")       return r.digitoll_status !== "not_sent";
     if (filter === "tms")        return r.source === "tms";
     return true;
   });
@@ -255,7 +235,7 @@ export default function TransportPage() {
     all:        records.length,
     incomplete: records.filter(r => calcTransportStatus(r) === "incomplete").length,
     ready:      records.filter(r => calcTransportStatus(r) === "ready").length,
-    sent:       records.filter(r => ["sent","received","accepted"].includes(r.status)).length,
+    sent:       records.filter(r => r.digitoll_status !== "not_sent").length,
     tms:        records.filter(r => r.source === "tms").length,
   };
 
@@ -286,6 +266,14 @@ export default function TransportPage() {
     setActive(r); setModal("edit"); buildTransportHierarchy(r);
   }
   function openView(r: Transport) { setActive(r); setModal("view"); buildTransportHierarchy(r); }
+
+  async function refreshOpen() {
+    await load();
+    if (active) {
+      const res = await fetch(`/api/transports/${active.id}`);
+      if (res.ok) { const full = await res.json(); setActive(full); setHierarchyNodes(nodesFromDetail("transport", full)); }
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -389,6 +377,9 @@ export default function TransportPage() {
             {modal === "edit" && hierarchyNodes.length > 0 && (
               <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />
             )}
+            {modal === "edit" && hierarchyNodes.length > 0 && (
+              <DigitollSubmitBar nodes={hierarchyNodes} currentType="transport" onDone={refreshOpen} />
+            )}
             {modalFormJSX}
             <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
@@ -412,6 +403,7 @@ export default function TransportPage() {
               <button onClick={() => setModal(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             {hierarchyNodes.length > 0 && <HierarchyTable nodes={hierarchyNodes} onNavigate={n => { setModal(null); setTimeout(() => window.location.href = `/digitoll/${n.type}?open=${n.id}`, 50); }} />}
+            {hierarchyNodes.length > 0 && <DigitollSubmitBar nodes={hierarchyNodes} currentType="transport" onDone={refreshOpen} />}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 22px", display: "flex", flexDirection: "column", gap: 0 }}>
               <DetailRow label="Transport No"       value={active.state_id} />
               <DetailRow label="Mode"               value={active.transport_mode} />
@@ -530,13 +522,6 @@ export default function TransportPage() {
                 <td style={{ padding: "9px 12px" }}><StatusPill status={calcTransportStatus(r)} /></td>
                 <td style={{ padding: "9px 8px", textAlign: "right" as const }}>
                   <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", paddingRight: 2 }}>
-                    {calcTransportStatus(r) === "ready" && (
-                      <button onClick={e => { e.stopPropagation(); setSubmitTarget(r); }}
-                        style={{ height: 28, padding: "0 10px", border: "none", borderRadius: 2, background: "#446BF9", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: "#fff", fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>send</span>
-                        Submit
-                      </button>
-                    )}
                     <button onClick={e => { e.stopPropagation(); openEdit(r); }}
                       style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#667085" }}
                       onMouseEnter={e => { (e.currentTarget.style.borderColor = "#446BF9"); (e.currentTarget.style.color = "#446BF9"); }}
@@ -556,88 +541,6 @@ export default function TransportPage() {
         <QuickViewModal type={quickView.type} id={quickView.id} label={quickView.label} onClose={() => setQuickView(null)} />
       )}
 
-      {/* Submit confirmation modal */}
-      {submitTarget && (
-        <div onClick={() => !submitting && setSubmitTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 560, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "16px 22px 14px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>Submit to Digitoll</div>
-              {!submitting && <button onClick={() => setSubmitTarget(null)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>}
-            </div>
-            <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column" as const, gap: 16 }}>
-              {/* Transport summary */}
-              <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "12px 16px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 8 }}>Transport</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  <div><div style={{ fontSize: 10, color: "#98A2B3", marginBottom: 2 }}>Transport No</div><div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828" }}>{submitTarget.state_id}</div></div>
-                  <div><div style={{ fontSize: 10, color: "#98A2B3", marginBottom: 2 }}>Border crossing</div><div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828" }}>{submitTarget.border_crossing}</div></div>
-                  <div><div style={{ fontSize: 10, color: "#98A2B3", marginBottom: 2 }}>ETA</div><div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828" }}>{submitTarget.eta ? new Date(submitTarget.eta).toLocaleDateString("sv-SE") : "—"}</div></div>
-                </div>
-              </div>
-              {/* Masters + Houses */}
-              {submitTarget.masters && submitTarget.masters.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 8 }}>
-                    {submitTarget.masters.length} Master{submitTarget.masters.length > 1 ? "s" : ""} · {submitTarget.masters.reduce((a, m) => a + (m.houses?.length ?? 0), 0)} Houses
-                  </div>
-                  {submitTarget.masters.map(m => (
-                    <div key={m.id} style={{ marginBottom: 8, border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ padding: "8px 12px", background: "#F2F4F7", display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#003160" }}>{m.state_id}</span>
-                      </div>
-                      {m.houses && m.houses.map(h => (
-                        <div key={h.id} style={{ padding: "7px 12px", borderTop: "1px solid #F2F4F7", display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: "#446BF9", minWidth: 60 }}>{h.state_id}</span>
-                          <span style={{ fontSize: 11, color: "#344054", flex: 1 }}>{h.goods_description ?? "—"}</span>
-                          <span style={{ fontSize: 11, color: "#667085" }}>{h.hs_code ?? "—"}</span>
-                          <span style={{ fontSize: 11, color: "#667085" }}>{h.gross_weight ? `${h.gross_weight} kg` : "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {submitting && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", justifyContent: "center", color: "#446BF9", fontSize: 13, fontWeight: 500 }}>
-                  <span style={{ fontFamily: "Material Icons", fontSize: 18, animation: "spin 1s linear infinite" }}>sync</span>
-                  Submitting to Digitoll…
-                  <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                </div>
-              )}
-            </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setSubmitTarget(null)} disabled={submitting} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054", opacity: submitting ? 0.5 : 1 }}>Cancel</button>
-              <button onClick={() => submitToDigitoll(submitTarget)} disabled={submitting} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: submitting ? 0.7 : 1 }}>
-                {submitting ? "Submitting…" : "Confirm & Submit"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Submit success modal */}
-      {submitDone && (
-        <div onClick={() => setSubmitDone(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 2, width: 440, overflow: "hidden" }}>
-            <div style={{ padding: "28px 28px 24px", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 12, textAlign: "center" as const }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#ECFDF3", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 26, color: "#027A48" }}>check_circle</span>
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#101828" }}>Submitted to Digitoll</div>
-              <div style={{ fontSize: 13, color: "#667085" }}>
-                {submitDone.transport.state_id} has been submitted successfully.
-              </div>
-              <div style={{ background: "#F9FAFB", border: "1px solid #E4E7EC", borderRadius: 2, padding: "12px 20px", width: "100%" }}>
-                <div style={{ fontSize: 10, color: "#98A2B3", marginBottom: 4, textTransform: "uppercase" as const, letterSpacing: ".06em" }}>MRN</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#003160", letterSpacing: ".08em" }}>{submitDone.mrn}</div>
-              </div>
-            </div>
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "center" }}>
-              <button onClick={() => setSubmitDone(null)} style={{ padding: "7px 24px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
