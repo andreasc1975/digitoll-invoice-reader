@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ItemsTable from "@/components/ItemsTable";
+import { CompanySearch, Company } from "@/components/CompanySearch";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface InvoiceField { field_key: string; field_value: string | null; confidence: string | null; source: string; }
@@ -49,14 +50,15 @@ const DIGITOLL_FIELDS = [
 
 const SAD_FIELDS = [
   // A — Parties
-  { key: "sad_exp_name",           label: "Exporter name",              required: true,  section: "A — PARTIES",    placeholder: "Legal name of exporting company" },
-  { key: "sad_exp_address",        label: "Exporter address",           required: true,  section: "A — PARTIES",    placeholder: "Full street address" },
-  { key: "sad_exp_country",        label: "Exporter country",           required: true,  section: "A — PARTIES",    placeholder: "e.g. SE" },
-  { key: "sad_exp_org_no",         label: "Exporter org. no.",          required: false, section: "A — PARTIES",    placeholder: "Organisation/VAT number" },
-  { key: "sad_imp_name",           label: "Importer name",              required: true,  section: "A — PARTIES",    placeholder: "Legal name of importing company" },
-  { key: "sad_imp_address",        label: "Importer address",           required: true,  section: "A — PARTIES",    placeholder: "Full street address in Norway" },
-  { key: "sad_imp_org_no",         label: "Importer org. no.",          required: true,  section: "A — PARTIES",    placeholder: "Norwegian organisation number (9 digits)" },
-  { key: "sad_imp_vat_no",         label: "Importer VAT no.",           required: true,  section: "A — PARTIES",    placeholder: "MVA + 9 digits" },
+  // Consignor/Consignee handled by CompanySearch — kept for completion tracking
+  { key: "sad_exp_name",    label: "Consignor name",    required: true,  section: "A — PARTIES", hidden: true },
+  { key: "sad_exp_address", label: "Consignor address",  required: false, section: "A — PARTIES", hidden: true },
+  { key: "sad_exp_country", label: "Consignor country",  required: false, section: "A — PARTIES", hidden: true },
+  { key: "sad_exp_org_no",  label: "Consignor org. no.", required: false, section: "A — PARTIES", hidden: true },
+  { key: "sad_imp_name",    label: "Consignee name",    required: true,  section: "A — PARTIES", hidden: true },
+  { key: "sad_imp_address", label: "Consignee address",  required: false, section: "A — PARTIES", hidden: true },
+  { key: "sad_imp_org_no",  label: "Consignee org. no.", required: false, section: "A — PARTIES", hidden: true },
+  { key: "sad_imp_vat_no",  label: "Consignee VAT no.",  required: false, section: "A — PARTIES", hidden: true },
   { key: "sad_declarant_name",     label: "Declarant / agent name",     required: false, section: "A — PARTIES",    placeholder: "Customs agent name" },
   { key: "sad_declarant_org_no",   label: "Declarant org. no.",         required: false, section: "A — PARTIES",    placeholder: "Customs agent org. number" },
   // B — References
@@ -65,23 +67,23 @@ const SAD_FIELDS = [
   { key: "sad_invoice_date",       label: "Invoice date",               required: true,  section: "B — REFERENCES", placeholder: "e.g. 2026-06-10" },
   { key: "sad_prev_document",      label: "Previous document",          required: false, section: "B — REFERENCES", placeholder: "Transit MRN or preceding document" },
   // C — Transport
-  { key: "sad_incoterm",           label: "Incoterm",                   required: true,  section: "C — TRANSPORT",  placeholder: "e.g. DAP, FOB, CIF" },
+  { key: "sad_incoterm",           label: "Incoterm",                   required: true,  section: "C — TRANSPORT",  placeholder: "e.g. DAP, FOB, CIF", options: ["EXW","FCA","FAS","FOB","CFR","CIF","CPT","CIP","DAP","DPU","DDP"] },
   { key: "sad_incoterm_place",     label: "Incoterm place",             required: true,  section: "C — TRANSPORT",  placeholder: "Named place" },
-  { key: "sad_transport_mode_border", label: "Transport mode at border",required: true,  section: "C — TRANSPORT",  placeholder: "Road / Sea / Air / Rail" },
+  { key: "sad_transport_mode_border", label: "Transport mode at border",required: true,  section: "C — TRANSPORT",  placeholder: "Road / Sea / Air / Rail", options: ["Road","Sea","Air","Rail","Mail","Fixed transport installations","Inland waterway","Unknown"] },
   { key: "sad_transport_ref_border",  label: "Transport reference",     required: true,  section: "C — TRANSPORT",  placeholder: "Vehicle reg., IMO, flight no." },
-  { key: "sad_border_crossing",    label: "Border crossing",            required: true,  section: "C — TRANSPORT",  placeholder: "e.g. Svinesund" },
-  { key: "sad_country_dispatch",   label: "Country of dispatch",        required: true,  section: "C — TRANSPORT",  placeholder: "e.g. SE" },
-  { key: "sad_country_destination",label: "Country of destination",     required: true,  section: "C — TRANSPORT",  placeholder: "e.g. NO" },
+  { key: "sad_border_crossing",    label: "Border crossing",            required: true,  section: "C — TRANSPORT",  placeholder: "e.g. Svinesund", options: ["Svinesund","Ørje","Magnor","Åsnes","Trysil","Røros","Hell","Storlien","Charlottenberg","Kornsjø","Riksgrensen","Bjørnfjell","Other"] },
+  { key: "sad_country_dispatch",   label: "Country of dispatch",        required: true,  section: "C — TRANSPORT",  placeholder: "e.g. SE", options: ["SE","NO","DK","FI","DE","FR","GB","NL","PL","IT","ES","US","CN","JP","KR","CH","AT","BE","CZ","HU","RO","SK","SI","HR","BG","EE","LV","LT","PT","GR","IE","LU","MT","CY"] },
+  { key: "sad_country_destination",label: "Country of destination",     required: true,  section: "C — TRANSPORT",  placeholder: "e.g. NO", options: ["NO","SE","DK","FI","DE","FR","GB","NL","PL","IT","ES","US","CN","JP","KR","CH","AT","BE","CZ","HU","RO","SK","SI","HR","BG","EE","LV","LT","PT","GR","IE","LU","MT","CY"] },
   // D — Goods
   { key: "sad_goods_description",  label: "Goods description",          required: true,  section: "D — GOODS",      placeholder: "Plain text description" },
   { key: "sad_hs_code",            label: "HS / commodity code",        required: true,  section: "D — GOODS",      placeholder: "Min. 6 digits" },
-  { key: "sad_country_origin",     label: "Country of origin",          required: true,  section: "D — GOODS",      placeholder: "e.g. DE" },
+  { key: "sad_country_origin",     label: "Country of origin",          required: true,  section: "D — GOODS",      placeholder: "e.g. DE", options: ["SE","NO","DK","FI","DE","FR","GB","NL","PL","IT","ES","US","CN","JP","KR","CH","AT","BE","CZ","HU","RO","SK","SI","HR","BG","EE","LV","LT","PT","GR","IE","LU","MT","CY"] },
   { key: "sad_gross_weight",       label: "Gross weight (kg)",          required: true,  section: "D — GOODS",      placeholder: "Total incl. packaging" },
   { key: "sad_net_weight",         label: "Net weight (kg)",            required: true,  section: "D — GOODS",      placeholder: "Excl. packaging" },
   { key: "sad_packages",           label: "Number of packages",         required: true,  section: "D — GOODS",      placeholder: "Total colli" },
   // E — Value & Duties
   { key: "sad_invoice_value",      label: "Invoice value",              required: true,  section: "E — VALUE",      placeholder: "Total invoice value" },
-  { key: "sad_currency",           label: "Currency",                   required: true,  section: "E — VALUE",      placeholder: "ISO 4217 e.g. EUR" },
+  { key: "sad_currency",           label: "Currency",                   required: true,  section: "E — VALUE",      placeholder: "ISO 4217 e.g. EUR", options: ["EUR","USD","GBP","NOK","SEK","DKK","CHF","JPY","CNY","PLN","CZK","HUF","RON","BGN","ISK","CAD","AUD","NZD","SGD","HKD","KRW","BRL","MXN","INR","ZAR","TRY","RUB"] },
   { key: "sad_exchange_rate",      label: "Exchange rate",              required: false, section: "E — VALUE",      placeholder: "To NOK" },
   { key: "sad_statistical_value",  label: "Statistical value (NOK)",    required: true,  section: "E — VALUE",      placeholder: "Basis for VAT" },
 ];
@@ -244,6 +246,11 @@ export default function IncomingDocuments() {
   const [saving, setSaving]             = useState(false);
   const [showCmsAnim, setShowCmsAnim]   = useState(false);
   const [cmsStep, setCmsStep]           = useState(0);
+  const [showBrreg, setShowBrreg]           = useState(false);
+  const [consignor, setConsignor]           = useState<Company | null>(null);
+  const [consignee, setConsignee]           = useState<Company | null>(null);
+  const [importExport, setImportExport]     = useState<"Export" | "Import">("Export");
+  const [creatingDraft, setCreatingDraft]   = useState(false);
 
   // Multi-file state
   const [uploadedFiles, setUploadedFiles] = useState<{ file: File; url: string; type: string; invoiceId: string | null; name: string }[]>([]);
@@ -636,11 +643,56 @@ export default function IncomingDocuments() {
     }
   }
 
-  function triggerCms() {
-    setShowCmsAnim(true); setCmsStep(1);
-    setTimeout(() => setCmsStep(2), 1200);
-    setTimeout(() => setCmsStep(3), 2400);
-    setTimeout(() => discardAndReturn(), 3800);
+  async function triggerCms() {
+    if (!activeInvoice || !consignor) return;
+    setCreatingDraft(true);
+    const get = (k: string) => localFields[k]?.value ?? null;
+    const destCountry = get("sad_country_destination") ?? get("destinationCountry") ?? "";
+    const detectedImportExport = destCountry.toUpperCase() === "NO" ? "Export" : importExport;
+
+    const body = {
+      invoice_id:         activeInvoice.id,
+      import_export:      detectedImportExport,
+      declaration_date:   new Date().toISOString().split("T")[0],
+      // Consignor from CompanySearch (Brreg or DB)
+      consignor_name:     consignor.name,
+      consignor_org_no:   consignor._org_no ?? null,
+      consignor_address:  consignor.address,
+      consignor_city:     consignor.city,
+      consignor_postcode: consignor.post_code,
+      consignor_country:  consignor.country_code,
+      brreg_validated:    consignor._source === "brreg",
+      // Consignee from CompanySearch
+      consignee_name:     consignee?.name ?? get("sad_imp_name"),
+      consignee_org_no:   consignee?._org_no ?? null,
+      consignee_address:  consignee?.address ?? get("sad_imp_address"),
+      consignee_city:     consignee?.city ?? null,
+      consignee_postcode: consignee?.post_code ?? null,
+      consignee_country:  consignee?.country_code ?? (destCountry || null),
+      // Invoice
+      invoice_number:     get("sad_invoice_number") ?? get("invoiceNumber"),
+      invoice_date:       get("sad_invoice_date") ?? get("invoiceDate"),
+      currency:           get("sad_currency") ?? get("currency"),
+      invoice_value:      get("sad_invoice_value") ?? get("totalValue"),
+      // Goods
+      goods_description:  get("sad_goods_description"),
+      hs_code:            get("sad_hs_code") ?? get("hsCode"),
+      gross_weight:       get("sad_gross_weight") ?? get("totalGrossWeight"),
+      net_weight:         get("sad_net_weight") ?? get("totalNetWeight"),
+      packages:           get("sad_packages"),
+      country_origin:     get("sad_country_origin") ?? get("originCountry"),
+    };
+
+    const res = await fetch("/api/customs-drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setCreatingDraft(false);
+    if (res.ok) {
+      setShowCmsAnim(true); setCmsStep(3);
+      setTimeout(() => discardAndReturn(), 2200);
+    }
   }
 
   // ── SAD → Digitoll field mapping ─────────────────────────────────────────
@@ -1050,13 +1102,24 @@ export default function IncomingDocuments() {
           </label>
           {confLabel}
         </div>
-        <input
-          style={{ ...inp, borderColor, background: missing ? "#FFF9F9" : "#fff" }}
-          value={val}
-          placeholder={(f as {placeholder?: string}).placeholder ?? (missing ? "Required — please fill in" : "")}
-          onChange={e => setLocalFields(prev => ({ ...prev, [f.key]: { value: e.target.value, source: "manual", confidence: null } }))}
-          onBlur={e => saveField(f.key, e.target.value)}
-        />
+        {(f as { options?: string[] }).options ? (
+          <select
+            style={{ ...inp, borderColor, background: missing ? "#FFF9F9" : "#fff", appearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23667085' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28 }}
+            value={val}
+            onChange={e => { setLocalFields(prev => ({ ...prev, [f.key]: { value: e.target.value, source: "manual", confidence: null } })); saveField(f.key, e.target.value); }}
+          >
+            <option value="">— Select —</option>
+            {(f as { options?: string[] }).options!.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input
+            style={{ ...inp, borderColor, background: missing ? "#FFF9F9" : "#fff" }}
+            value={val}
+            placeholder={(f as {placeholder?: string}).placeholder ?? (missing ? "Required — please fill in" : "")}
+            onChange={e => setLocalFields(prev => ({ ...prev, [f.key]: { value: e.target.value, source: "manual", confidence: null } }))}
+            onBlur={e => saveField(f.key, e.target.value)}
+          />
+        )}
         {missing && <div style={{ fontSize: 10.5, color: "#D92D20", marginTop: 2 }}>Required — please fill in this field</div>}
       </div>
     );
@@ -1418,10 +1481,55 @@ export default function IncomingDocuments() {
               {/* Fields grouped by section */}
               {(() => {
                 const sections: Record<string, typeof DIGITOLL_FIELDS> = {};
-                activeFields.forEach(f => { if (!sections[f.section]) sections[f.section] = []; sections[f.section].push(f); });
+                activeFields.forEach(f => {
+                  if ((f as {hidden?: boolean}).hidden) return; // skip hidden fields
+                  if (!sections[f.section]) sections[f.section] = [];
+                  sections[f.section].push(f);
+                });
                 return Object.entries(sections).map(([section, sFields]) => (
                   <div key={section} style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".07em", marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid #F2F4F7" }}>{section}</div>
+                    {/* Inject CompanySearch at top of A — PARTIES */}
+                    {section === "A — PARTIES" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px", marginBottom: 4 }}>
+                        <CompanySearch
+                          label="Consignor"
+                          required
+                          value={consignor}
+                          enableBrreg
+                          missing={!consignor && formMode === "sad"}
+                          onChange={c => {
+                            setConsignor(c);
+                            if (c) {
+                              setLocalFields(prev => ({
+                                ...prev,
+                                sad_exp_name:    { value: c.name,            source: "manual", confidence: null },
+                                sad_exp_address: { value: c.address ?? "",   source: "manual", confidence: null },
+                                sad_exp_country: { value: c.country_code ?? "", source: "manual", confidence: null },
+                                sad_exp_org_no:  { value: c._org_no ?? "",   source: "manual", confidence: null },
+                              }));
+                            }
+                          }}
+                        />
+                        <CompanySearch
+                          label="Consignee"
+                          required
+                          value={consignee}
+                          missing={!consignee && formMode === "sad"}
+                          onChange={c => {
+                            setConsignee(c);
+                            if (c) {
+                              setLocalFields(prev => ({
+                                ...prev,
+                                sad_imp_name:    { value: c.name,            source: "manual", confidence: null },
+                                sad_imp_address: { value: c.address ?? "",   source: "manual", confidence: null },
+                                sad_imp_org_no:  { value: c._org_no ?? "",   source: "manual", confidence: null },
+                              }));
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: sFields.length === 1 ? "1fr" : "1fr 1fr", gap: "0 12px" }}>
                       {sFields.map(renderField)}
                     </div>
@@ -1526,12 +1634,12 @@ export default function IncomingDocuments() {
                     Digitoll
                   </button>
                   <button
-                    onClick={() => { if (sadOk) { setDestination(destination === "sad" ? null : "sad"); setFormMode("sad"); } }}
-                    style={{ ...btnBase(sadOk, destination === "sad"), border: destination === "sad" ? "2px solid #446BF9" : sadOk ? "1px solid #D0D5DD" : "1px solid #E4E7EC" }}
-                    title={!sadOk ? `${sadComp.total - sadComp.filled} SAD fields missing` : "Create Customs Declaration"}
+                    onClick={() => { if (sadOk && consignor) triggerCms(); }}
+                    style={btnPrimary(sadOk && !!consignor)}
+                    title={!sadOk ? "SAD fields incomplete" : !consignor ? "Select a Consignor first" : "Validate consignor and create Draft in Customs"}
                   >
-                    <span style={{ fontFamily: "Material Icons", fontSize: 14, lineHeight: 1 }}>gavel</span>
-                    Customs
+                    <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>send</span>
+                    Send to CMS
                   </button>
                 </>
               );
@@ -1546,16 +1654,21 @@ export default function IncomingDocuments() {
   const CmsOverlay = showCmsAnim && (
     <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.6)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: 2, padding: "40px 48px", textAlign: "center", maxWidth: 360, width: "100%" }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>{cmsStep === 1 ? "📤" : cmsStep === 2 ? "🔄" : "✅"}</div>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#101828", marginBottom: 8 }}>
-          {cmsStep === 1 ? "Preparing data…" : cmsStep === 2 ? "Sending to CMS…" : "Data received by CMS!"}
-        </div>
-        <div style={{ fontSize: 13, color: "#667085" }}>
-          {cmsStep === 1 ? "Serializing extracted fields to JSON" : cmsStep === 2 ? "Transmitting to your CMS endpoint" : "Successfully processed — returning to overview"}
-        </div>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#101828", marginBottom: 8 }}>Draft created!</div>
+        <div style={{ fontSize: 13, color: "#667085" }}>The declaration has been saved as a Draft in Customs.</div>
         <div style={{ marginTop: 20, height: 4, background: "#F2F4F7", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{ height: "100%", background: "#12B76A", width: cmsStep === 1 ? "33%" : cmsStep === 2 ? "66%" : "100%", transition: "width 1.1s ease-in-out" }} />
+          <div style={{ height: "100%", background: "#12B76A", width: "100%", transition: "width 1.1s ease-in-out" }} />
         </div>
+      </div>
+    </div>
+  );
+
+  const DraftLoadingOverlay = creatingDraft && (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 2, padding: "32px 40px", textAlign: "center" }}>
+        <div style={{ width: 32, height: 32, border: "3px solid #E4E7EC", borderTopColor: "#446BF9", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 16px" }} />
+        <div style={{ fontSize: 13, color: "#344054", fontWeight: 600 }}>Creating draft…</div>
       </div>
     </div>
   );
@@ -1681,6 +1794,7 @@ export default function IncomingDocuments() {
         </div>
       )}
       {CmsOverlay}
+      {DraftLoadingOverlay}
       <input ref={fileInput} type="file" multiple accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => handleFiles(e.target.files)} />
     </div>
   );
