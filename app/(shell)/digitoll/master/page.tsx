@@ -31,6 +31,9 @@ interface Master {
   gross_weight: string | null;
   document_number: string | null;
   document_type: string | null;
+  consignor: string | null;
+  consignee: string | null;
+  goods_description: string | null;
   carrier_id: string | null;
   transport_equipment: string | null;
   loading_location: string | null;
@@ -133,7 +136,8 @@ function RefBadge({ label, color, bg, onClick }: { label: string; color: string;
 function calcMasterStatus(m: Master): string {
   const hasRequired = !!(
     m.document_number && m.document_type &&
-    m.gross_weight && m.transport_equipment && m.loading_location && m.unloading_location
+    m.gross_weight && m.transport_equipment && m.loading_location && m.unloading_location &&
+    m.consignor && m.consignee && m.goods_description
   );
   if (!hasRequired) return "incomplete";
   return "ready";
@@ -165,12 +169,14 @@ type ModalType = "new" | "edit" | "view" | null;
 type Form = {
   reference: string; transport_id: string;
   gross_weight: string; status: string;
+  consignor: string; consignee: string; goods_description: string;
   document_number: string; document_type: string; carrier_id: string;
   transport_equipment: string; loading_location: string; unloading_location: string; relevant_documents: string;
 };
 const emptyForm: Form = {
   reference: "", transport_id: "",
   gross_weight: "", status: "incomplete",
+  consignor: "", consignee: "", goods_description: "",
   document_number: "", document_type: "", carrier_id: "",
   transport_equipment: "", loading_location: "", unloading_location: "", relevant_documents: "",
 };
@@ -262,6 +268,19 @@ export default function MasterPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Open edit modal directly if ?open=<id> is in URL
+  useEffect(() => {
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (!openId || records.length === 0) return;
+    const r = records.find(r => r.id === openId);
+    if (r) {
+      openEdit(r);
+      // Clean URL without reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [records]);
+
+
   useEffect(() => {
     function handleCreate() { openNew(); }
     function handleDelete() { deleteSelected(); }
@@ -309,6 +328,7 @@ export default function MasterPage() {
       reference: r.reference ?? "", transport_id: r.transport_id ?? "",
       gross_weight: r.gross_weight ?? "", status: r.status,
       document_number: r.document_number ?? "", document_type: r.document_type ?? "",
+      consignor: r.consignor ?? "", consignee: r.consignee ?? "", goods_description: r.goods_description ?? "",
       carrier_id: r.carrier_id ?? "", transport_equipment: r.transport_equipment ?? "",
       loading_location: r.loading_location ?? "", unloading_location: r.unloading_location ?? "",
       relevant_documents: r.relevant_documents ?? "",
@@ -384,6 +404,17 @@ export default function MasterPage() {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div><FL>Gross weight (kg)</FL><input style={inp} value={form.gross_weight} onChange={e => setForm(f => ({ ...f, gross_weight: e.target.value }))} placeholder="1240.00" /></div>
+      </div>
+
+      {/* Parties */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Parties</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div><FL required>Consignor (avsender)</FL><input style={inp} value={form.consignor} onChange={e => setForm(f => ({ ...f, consignor: e.target.value }))} placeholder="Sender name or EORI" /></div>
+        <div><FL required>Consignee (mottaker)</FL><input style={inp} value={form.consignee} onChange={e => setForm(f => ({ ...f, consignee: e.target.value }))} placeholder="Recipient name or EORI" /></div>
+      </div>
+      <div>
+        <FL required>Goods description (varebeskrivelse)</FL>
+        <input style={inp} value={form.goods_description} onChange={e => setForm(f => ({ ...f, goods_description: e.target.value }))} placeholder="e.g. Machine parts, frozen fish…" />
       </div>
 
       {/* Consignment note */}
@@ -563,12 +594,19 @@ export default function MasterPage() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              {}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Close</button>
-                <button onClick={() => active && openEdit(active)} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
-              </div>
+            <div style={{ padding: "12px 22px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+              <button onClick={() => setModal(null)} style={{ padding: "7px 16px", borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>
+                {modal === "new" ? "Cancel" : "Close"}
+              </button>
+              {modal === "new" ? (
+                <button onClick={save} disabled={saving} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
+                  {saving ? "Creating…" : "Create"}
+                </button>
+              ) : (
+                <button onClick={save} disabled={saving} style={{ padding: "7px 16px", borderRadius: 2, border: "none", background: "#446BF9", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}>
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+              )}
             </div>
           </div>
         </div>

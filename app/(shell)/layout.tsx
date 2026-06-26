@@ -63,6 +63,7 @@ const iconStyle = {
 
 export default function ShellLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ tms: true, docreader: true });
 
@@ -93,6 +94,11 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
     if (path === "/digitoll/incoming") return "Document Reader / Incoming";
     if (path === "/digitoll/settings") return "Document Reader / Settings";
     return "";
+  }
+
+  // Sales Order has its own layout
+  if (path === "/sales-order" || path.startsWith("/sales-order/")) {
+    return <>{children}</>;
   }
 
   return (

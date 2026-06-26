@@ -219,6 +219,19 @@ export default function HousePage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Open edit modal directly if ?open=<id> is in URL
+  useEffect(() => {
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (!openId || records.length === 0) return;
+    const r = records.find(r => r.id === openId);
+    if (r) {
+      openEdit(r);
+      // Clean URL without reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [records]);
+
+
   useEffect(() => {
     function handleCreate() { openNew(); }
     function handleDelete() { deleteSelected(); }
@@ -409,7 +422,7 @@ export default function HousePage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div><FL>HS code</FL><input style={inp} value={form.hs_code} onChange={e => setForm(f => ({ ...f, hs_code: e.target.value }))} placeholder="8708.99.97" /></div>
         <div><FL>Country of origin</FL><input style={inp} value={form.country_origin} onChange={e => setForm(f => ({ ...f, country_origin: e.target.value }))} placeholder="DE" /></div>
-        <div><FL>Packages</FL><input style={inp} value={form.packages} onChange={e => setForm(f => ({ ...f, packages: e.target.value }))} placeholder="24 cartons" /></div>
+        <div><FL>Number of packages (kolli)</FL><input style={inp} type="number" min="0" value={form.packages} onChange={e => setForm(f => ({ ...f, packages: e.target.value }))} placeholder="24" /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div><FL>Gross weight (kg)</FL><input style={inp} value={form.gross_weight} onChange={e => setForm(f => ({ ...f, gross_weight: e.target.value }))} placeholder="1240.00" /></div>

@@ -19,7 +19,10 @@ interface Transport {
   conveyance_reference_number: string | null;
   operator_name: string | null;
   operator_id: string | null;
+  driver_contact: string | null;
   customs_office: string | null;
+  nationality_of_means: string | null;
+  customs_representative: string | null;
   status: string;
   digitoll_status: string;
   source: string;
@@ -172,12 +175,12 @@ type Form = {
   eta: string; status: string; scheduled_arrival: string;
   identification_number: string; type_of_identification: string;
   conveyance_reference_number: string; operator_name: string; operator_id: string;
-  customs_office: string;
+  driver_contact: string; customs_office: string; nationality_of_means: string; customs_representative: string;
 };
 const emptyForm: Form = {
   reference: "", transport_mode: "Road", carrier: "", border_crossing: "", eta: "", status: "incomplete",
   scheduled_arrival: "", identification_number: "", type_of_identification: "",
-  conveyance_reference_number: "", operator_name: "", operator_id: "", customs_office: "",
+  conveyance_reference_number: "", operator_name: "", operator_id: "", driver_contact: "", customs_office: "", nationality_of_means: "", customs_representative: "",
 };
 
 export default function TransportPage() {
@@ -205,6 +208,19 @@ export default function TransportPage() {
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Open edit modal directly if ?open=<id> is in URL
+  useEffect(() => {
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (!openId || records.length === 0) return;
+    const r = records.find(r => r.id === openId);
+    if (r) {
+      openEdit(r);
+      // Clean URL without reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [records]);
+
 
   useEffect(() => {
     function handleCreate() { openNew(); }
@@ -261,6 +277,9 @@ export default function TransportPage() {
       conveyance_reference_number: r.conveyance_reference_number ?? "",
       operator_name: r.operator_name ?? "",
       operator_id: r.operator_id ?? "",
+      driver_contact: r.driver_contact ?? "",
+      nationality_of_means: r.nationality_of_means ?? "",
+      customs_representative: r.customs_representative ?? "",
       customs_office: r.customs_office ?? "",
     });
     setActive(r); setModal("edit"); buildTransportHierarchy(r);
@@ -287,6 +306,9 @@ export default function TransportPage() {
       type_of_identification: form.type_of_identification || null,
       conveyance_reference_number: form.conveyance_reference_number || null,
       operator_name: form.operator_name || null,
+        driver_contact: form.driver_contact || null,
+        customs_representative: form.customs_representative || null,
+        nationality_of_means: form.nationality_of_means || null,
       operator_id: form.operator_id || null,
       customs_office: form.customs_office || null,
     };
@@ -336,16 +358,21 @@ export default function TransportPage() {
           </select>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div><FL>Carrier / vehicle ref.</FL><input style={inp} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} placeholder="ABC 123 456" /></div>
         <div><FL>Conveyance ref. no. (air only)</FL><input style={inp} value={form.conveyance_reference_number} onChange={e => setForm(f => ({ ...f, conveyance_reference_number: e.target.value }))} placeholder="Route number" /></div>
+        <div><FL>Nationality of means</FL><input style={inp} value={form.nationality_of_means} onChange={e => setForm(f => ({ ...f, nationality_of_means: e.target.value }))} placeholder="e.g. NO, SE, PL" /></div>
       </div>
 
       {/* Operator */}
       <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", paddingBottom: 6, borderBottom: "1px solid #F2F4F7" }}>Operator / driver</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div><FL required>Operator name</FL><input style={inp} value={form.operator_name} onChange={e => setForm(f => ({ ...f, operator_name: e.target.value }))} placeholder="Full name or company" /></div>
         <div><FL>Operator ID</FL><input style={inp} value={form.operator_id} onChange={e => setForm(f => ({ ...f, operator_id: e.target.value }))} placeholder="EORI / org. no." /></div>
+        <div><FL>Driver contact</FL><input style={inp} value={form.driver_contact} onChange={e => setForm(f => ({ ...f, driver_contact: e.target.value }))} placeholder="Phone or email" /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+        <div><FL>Customs representative (tollrepresentant)</FL><input style={inp} value={form.customs_representative} onChange={e => setForm(f => ({ ...f, customs_representative: e.target.value }))} placeholder="Name or EORI" /></div>
       </div>
 
       {/* Arrival */}
