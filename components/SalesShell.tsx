@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
@@ -10,9 +10,9 @@ const NAV_ITEMS = [
   { href: "#",            label: "To accounting",clickable: false },
 ];
 
-const iS = {
-  fontFamily: "Material Symbols Rounded", fontSize: 22, color: "#fff",
-  lineHeight: 1, userSelect: "none" as const,
+const iconStyle = {
+  fontFamily: "Material Symbols Rounded",
+  fontSize: 22, color: "#fff", lineHeight: 1, userSelect: "none" as const,
   fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24",
 };
 
@@ -20,22 +20,13 @@ export function SalesShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
-  useEffect(() => {
-    if (!document.querySelector("link[href*='Material+Icons']")) {
-      const l = document.createElement("link");
-      l.rel = "stylesheet";
-      l.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
-      document.head.appendChild(l);
-    }
-  }, []);
-
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
-  const sa = NAV_ITEMS.some(i => i.clickable && isActive(i.href));
+  const sectionActive = NAV_ITEMS.some(i => i.clickable && isActive(i.href));
 
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "'Inter', sans-serif" }}>
 
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <div style={{ width: collapsed ? 60 : 230, background: "#fff", borderRight: "1px solid #E4E7EC", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", transition: "width 0.2s" }}>
         <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", padding: collapsed ? 0 : "0 16px", gap: 10, borderBottom: "1px solid #E4E7EC", flexShrink: 0 }}>
           {collapsed ? (
@@ -55,46 +46,50 @@ export function SalesShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 2px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", height: 37, padding: collapsed ? 0 : "0 14px", background: sa ? "#DFE5EB" : "transparent", borderRadius: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", height: 37, padding: collapsed ? 0 : "0 14px", background: sectionActive ? "#DFE5EB" : "transparent", borderRadius: 2 }}>
             {collapsed ? (
               <Link href="/sales-order" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", textDecoration: "none" }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 16, color: sa ? "#003160" : "#767676" }}>receipt_long</span>
+                <span style={{ fontFamily: "Material Icons", fontSize: 16, color: sectionActive ? "#003160" : "#767676" }}>receipt_long</span>
               </Link>
             ) : (
               <Link href="/sales-order" style={{ display: "flex", alignItems: "center", gap: 7, textDecoration: "none", flex: 1, height: "100%" }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 15, color: sa ? "#003160" : "#767676" }}>receipt_long</span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", color: sa ? "#003160" : "#767676", textTransform: "uppercase" as const }}>Sales Order</span>
+                <span style={{ fontFamily: "Material Icons", fontSize: 15, color: sectionActive ? "#003160" : "#767676" }}>receipt_long</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", color: sectionActive ? "#003160" : "#767676", textTransform: "uppercase" as const }}>Sales Order</span>
               </Link>
             )}
             {!collapsed && <span style={{ fontFamily: "Material Icons", fontSize: 14, color: "#98A2B3" }}>remove</span>}
           </div>
 
-          {!collapsed && NAV_ITEMS.map((item, idx) => {
-            const active = item.clickable && isActive(item.href);
-            const isLast = idx === NAV_ITEMS.length - 1;
-            return item.clickable ? (
-              <Link key={idx} href={item.href}
-                style={{ display: "flex", alignItems: "center", height: 37, padding: "0 14px", color: sa ? "#003160" : "#767676", fontWeight: active ? 700 : 400, fontSize: 13, textDecoration: "none", background: sa ? "#DFE5EB" : "transparent", borderRadius: isLast ? "0 0 2px 2px" : 0, transition: "background 0.1s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sa ? "#CDD6E0" : "#F2F4F7"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = sa ? "#DFE5EB" : "transparent"; }}>
-                <span style={{ width: 18, display: "flex", justifyContent: "center", marginRight: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#003160" : "#98A2B3", display: "inline-block" }} />
-                </span>
-                {item.label}
-              </Link>
-            ) : (
-              <div key={idx} style={{ display: "flex", alignItems: "center", height: 37, padding: "0 14px", color: "#C0C8D8", fontSize: 13, cursor: "default" }}>
-                <span style={{ width: 18, display: "flex", justifyContent: "center", marginRight: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E4E7EC", display: "inline-block" }} />
-                </span>
-                {item.label}
-              </div>
-            );
-          })}
+          {!collapsed && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 1 }}>
+              {NAV_ITEMS.map((item, idx) => {
+                const active = item.clickable && isActive(item.href);
+                const isLast = idx === NAV_ITEMS.length - 1;
+                return item.clickable ? (
+                  <Link key={idx} href={item.href}
+                    style={{ display: "flex", alignItems: "center", height: 37, padding: "0 14px", color: sectionActive ? "#003160" : "#767676", fontWeight: active ? 700 : 400, fontSize: 13, textDecoration: "none", background: sectionActive ? "#DFE5EB" : "transparent", borderRadius: isLast ? "0 0 2px 2px" : 0, transition: "background 0.1s" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sectionActive ? "#CDD6E0" : "#F2F4F7"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = sectionActive ? "#DFE5EB" : "transparent"; }}>
+                    <span style={{ width: 18, display: "flex", justifyContent: "center", marginRight: 8 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#003160" : "#98A2B3", display: "inline-block" }} />
+                    </span>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", height: 37, padding: "0 14px", color: "#C0C8D8", fontSize: 13, cursor: "default" }}>
+                    <span style={{ width: 18, display: "flex", justifyContent: "center", marginRight: 8 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E4E7EC", display: "inline-block" }} />
+                    </span>
+                    {item.label}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Main */}
+      {/* ── Main ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ background: "#003160", height: 60, display: "flex", alignItems: "center", padding: "0 20px", gap: 12, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
@@ -111,7 +106,7 @@ export function SalesShell({ children }: { children: React.ReactNode }) {
               <div key={icon} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2 }}
                 onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <span style={iS}>{icon}</span>
+                <span style={iconStyle}>{icon}</span>
               </div>
             ))}
             <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.2)", margin: "0 6px" }} />
@@ -119,7 +114,7 @@ export function SalesShell({ children }: { children: React.ReactNode }) {
               <div key={icon} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 2 }}
                 onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <span style={iS}>{icon}</span>
+                <span style={iconStyle}>{icon}</span>
               </div>
             ))}
           </div>
