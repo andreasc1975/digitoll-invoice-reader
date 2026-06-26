@@ -361,7 +361,7 @@ export default function SODetail() {
                     <th colSpan={3} style={G}>DIFFERENCE <span style={{fontSize:8,color:"#98A2B3",marginLeft:4}}>({order.quantity_measure})</span></th>
                     <th colSpan={2} style={G}>PRICE <span style={{fontSize:8,color:"#98A2B3",marginLeft:4}}>({order.currency})</span></th>
                     <th colSpan={2} style={G}>DISCOUNT</th>
-                    <th style={{...G,textAlign:"right"}}></th>
+                    <th style={{...G,textAlign:"right"}}>NET AMOUNT</th>
                     <th style={{...G,width:26,textAlign:"right"}}><span style={{fontFamily:"Material Icons",fontSize:13,color:"#D0D5DD"}}>view_column</span></th>
                   </tr>
                   <tr>
@@ -384,7 +384,7 @@ export default function SODetail() {
                     <th style={H}>QUANTITY</th>
                     <th style={H}>PRICE</th>
                     <th style={HL}>UNIT</th>
-                    <th style={HL}>VALUE</th>
+                    <th style={H}>VALUE</th>
                     <th style={HL}>TYPE</th>
                     <th style={H}>NET AMOUNT</th>
                     <th style={{...H,width:26}}></th>
@@ -394,10 +394,10 @@ export default function SODetail() {
                   {/* Action row */}
                   <tr style={{background:"#F8FAFC",borderBottom:"1px solid #E4E7EC"}}>
                     <td colSpan={23} style={{padding:"4px 8px"}}>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        <span onClick={()=>{setAdding(true);setTimeout(()=>searchRef.current?.focus(),50);}} style={{fontFamily:"Material Icons",fontSize:22,color:"#446BF9",cursor:"pointer"}}>add_circle</span>
-                        <span style={{fontFamily:"Material Icons",fontSize:18,color:"#667085",cursor:"pointer"}}>lock</span>
-                        <span style={{fontFamily:"Material Icons",fontSize:18,color:"#667085",cursor:"pointer"}}>delete_outline</span>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span onClick={()=>{setAdding(true);setTimeout(()=>searchRef.current?.focus(),50);}} style={{fontFamily:"Material Icons",fontSize:20,color:"#003160",cursor:"pointer",lineHeight:1}}>add_circle</span>
+                        <span style={{fontFamily:"Material Icons",fontSize:18,color:"#003160",cursor:"pointer",lineHeight:1}}>lock</span>
+                        <span style={{fontFamily:"Material Icons",fontSize:18,color:"#003160",cursor:"pointer",lineHeight:1}}>shopping_basket</span>
                         {expandedLine && (
                           <button onClick={()=>{setExpandedLine(null);setExpandedUnits(new Set());}}
                             style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4,padding:"2px 8px",border:"1px solid #D0D5DD",borderRadius:2,background:"#fff",cursor:"pointer",fontSize:11,color:"#667085",fontFamily:"inherit"}}>
@@ -558,39 +558,57 @@ export default function SODetail() {
               if(!l) return null;
               const lp = pallets[expandedLine]??[];
               const isLoading = palletsLoading===expandedLine;
-              const ph:React.CSSProperties={fontSize:8.5,fontWeight:700,color:"#003160",textTransform:"uppercase" as const,letterSpacing:".05em",padding:"4px 8px",borderBottom:"1px solid #D0D5DD",whiteSpace:"nowrap" as const,background:"#EEF4FF",textAlign:"left" as const};
+              const ph:React.CSSProperties={fontSize:9,fontWeight:700,color:"#003160",textTransform:"uppercase" as const,letterSpacing:".04em",padding:"0 8px 6px",borderBottom:"2px solid #E4E7EC",whiteSpace:"nowrap" as const,background:"#fff",textAlign:"left" as const};
               const phR:React.CSSProperties={...ph,textAlign:"right" as const};
-              const pd:React.CSSProperties={padding:"0 8px",height:"38px",fontSize:11.5,color:"#344054",borderBottom:"1px solid #F2F4F7",whiteSpace:"nowrap" as const,verticalAlign:"middle" as const};
+              const phG:React.CSSProperties={fontSize:9,fontWeight:700,color:"#003160",textTransform:"uppercase" as const,letterSpacing:".06em",padding:"6px 8px 2px",borderBottom:"none",whiteSpace:"nowrap" as const,background:"#fff",textAlign:"left" as const};
+              const phGR:React.CSSProperties={...phG,textAlign:"right" as const};
+              const pd:React.CSSProperties={padding:"0 8px",height:"43px",fontSize:11.5,color:"#344054",borderBottom:"1px solid #F2F4F7",whiteSpace:"nowrap" as const,verticalAlign:"middle" as const};
               const pdR:React.CSSProperties={...pd,textAlign:"right" as const,fontFamily:"'Roboto Mono',monospace"};
               const pdB:React.CSSProperties={...pdR,color:"#446BF9"};
+              const pdTot:React.CSSProperties={...pdR,background:"#F2F4F7",fontWeight:700,borderBottom:"1px solid #E4E7EC"};
+              const pdTotL:React.CSSProperties={...pd,background:"#F2F4F7",fontWeight:700,borderBottom:"1px solid #E4E7EC"};
               return (
                 <div style={{marginTop:20}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                    <span style={{width:3,height:16,background:"#446BF9",borderRadius:2,display:"inline-block"}}/>
-                    <span style={{fontSize:10,fontWeight:700,color:"#003160",textTransform:"uppercase" as const,letterSpacing:".07em"}}>Pallets — {l.item_no} · {l.item_name}</span>
-                    <button onClick={()=>setExpandedLine(null)} style={{marginLeft:"auto",border:"none",background:"none",cursor:"pointer",color:"#98A2B3",fontSize:13,lineHeight:1,fontFamily:"Material Icons"}}>close</button>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                    <span style={{width:3,height:16,background:"#446BF9",borderRadius:2,display:"inline-block",flexShrink:0}}/>
+                    {/* Breadcrumb */}
+                    <nav style={{display:"flex",alignItems:"center",gap:4,flex:1,overflow:"hidden"}}>
+                      <span
+                        onClick={()=>{setExpandedUnits(new Set());}}
+                        style={{fontSize:10,fontWeight:700,color:expandedUnits.size>0?"#446BF9":"#003160",textTransform:"uppercase" as const,letterSpacing:".06em",cursor:expandedUnits.size>0?"pointer":"default",whiteSpace:"nowrap" as const}}>
+                        PALLETS — {l.item_no} · {l.item_name}
+                      </span>
+                      {expandedUnits.size>0 && (()=>{
+                        const ep = lp.find(p=>expandedUnits.has(p.id));
+                        return ep ? (<>
+                          <span style={{color:"#D0D5DD",fontSize:12,fontWeight:400}}>/</span>
+                          <span style={{fontSize:10,fontWeight:700,color:"#003160",textTransform:"uppercase" as const,letterSpacing:".06em",whiteSpace:"nowrap" as const}}>
+                            UNITS — {ep.pallet_no}
+                          </span>
+                        </>) : null;
+                      })()}
+                    </nav>
+                    <button onClick={()=>setExpandedLine(null)} style={{marginLeft:"auto",flexShrink:0,border:"none",background:"none",cursor:"pointer",color:"#98A2B3",fontSize:13,lineHeight:1,fontFamily:"Material Icons"}}>close</button>
                   </div>
                   {isLoading && <div style={{padding:16,fontSize:12,color:"#98A2B3",background:"#fff",border:"1px solid #E4E7EC",borderRadius:2}}>Loading pallets…</div>}
                   {!isLoading && lp.length===0 && <div style={{padding:16,fontSize:12,color:"#98A2B3",background:"#fff",border:"1px solid #E4E7EC",borderRadius:2}}>No pallets found for this item.</div>}
                   {!isLoading && lp.length>0 && (()=>{
                     const expandedPallet = lp.find(p=>expandedUnits.has(p.id)) ?? null;
                     const visiblePallets = expandedPallet ? [expandedPallet] : lp;
-                    return (
-                    <div style={{background:"#fff",border:"1px solid #E4E7EC",borderRadius:2,overflow:"hidden"}}>
-                      {/* "Show all pallets" button when one is expanded */}
-                      {expandedPallet && (
-                        <div style={{padding:"4px 8px",background:"#F8FAFC",borderBottom:"1px solid #E4E7EC",display:"flex",alignItems:"center",gap:6}}>
-                          <button onClick={()=>setExpandedUnits(new Set())}
-                            style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",border:"1px solid #D0D5DD",borderRadius:2,background:"#fff",cursor:"pointer",fontSize:11,color:"#667085",fontFamily:"inherit"}}>
-                            <span style={{fontFamily:"Material Icons",fontSize:13,color:"#667085"}}>unfold_more</span>
-                            Show all pallets
-                          </button>
-                          <span style={{fontSize:11,color:"#98A2B3"}}>Showing pallet {expandedPallet.pallet_no}</span>
-                        </div>
-                      )}
-                      <div style={{overflowX:"auto"}}>
-                        <table style={{width:"100%",borderCollapse:"collapse"}}>
+                    const palletTotKg  = visiblePallets.reduce((s,p)=>s+p.total_kg,0);
+                    const palletResKg  = visiblePallets.reduce((s,p)=>s+p.reserved_kg,0);
+                    const palletAlcKg  = visiblePallets.reduce((s,p)=>s+p.allocated_kg,0);
+                    const palletAvlKg  = visiblePallets.reduce((s,p)=>s+p.available_kg,0);
+                    const palletInvVal = visiblePallets.reduce((s,p)=>s+p.inventory_value,0);
+                    return (<>
+                    <div style={{overflowX:"auto"}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"auto" as const}}>
                           <thead>
+                            <tr style={{background:"#fff"}}>
+                              <th colSpan={7} style={phG}></th>
+                              <th colSpan={4} style={phGR}>PRICE / MARGIN</th>
+                              <th colSpan={5} style={phGR}>QUANTITY (KG)</th>
+                            </tr>
                             <tr>
                               <th style={{...ph,width:28}}></th>
                               <th style={ph}>WAREHOUSE</th>
@@ -658,24 +676,25 @@ export default function SODetail() {
                                 </tr>
                                 {isExpPallet && (
                                   <tr>
-                                    <td colSpan={16} style={{padding:0,background:"#F8FAFC"}}>
-                                      <div style={{borderTop:"1px solid #E4E7EC",marginTop:20}}>
-                                        <div style={{padding:"6px 8px",background:"#F2F4F7",borderBottom:"1px solid #E4E7EC",display:"flex",alignItems:"center",gap:6}}>
-                                          <span style={{width:3,height:14,background:"#98A2B3",borderRadius:2,display:"inline-block"}}/>
-                                          <span style={{fontSize:9,fontWeight:700,color:"#667085",textTransform:"uppercase" as const,letterSpacing:".07em"}}>Units — {p.pallet_no}</span>
-                                        </div>
-                                        <table style={{width:"100%",borderCollapse:"collapse"}}>
+                                    <td colSpan={16} style={{padding:0}}>
+                                      <div style={{marginTop:20,overflowX:"auto"}}>
+                                        <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"auto" as const}}>
                                           <thead>
-                                            <tr style={{background:"#F2F4F7"}}>
+                                            <tr style={{background:"#fff"}}>
+                                              <th colSpan={8} style={phG}></th>
+                                              <th colSpan={4} style={phGR}>PRICE / MARGIN</th>
+                                              <th colSpan={5} style={phGR}>QUANTITY (KG)</th>
+                                            </tr>
+                                            <tr>
                                               {["PACKING PLANT","UNIT NO","PO NO","LANDING NO","PACKED","ORIGINAL ETA","USE BY","RESERVED TO SO"].map(h=>(
-                                                <th key={h} style={{...ph,background:"#F2F4F7",color:"#667085"}}>{h}</th>
+                                                <th key={h} style={{...ph,background:"#F8FAFC"}}>{h}</th>
                                               ))}
-                                              <th style={{...phR,background:"#F2F4F7",color:"#667085"}}>VALUE PR WEIGHT</th>
-                                              <th style={{...phR,background:"#F2F4F7",color:"#446BF9"}}>SALES PRICE</th>
-                                              <th style={{...phR,background:"#F2F4F7",color:"#22C55E"}}>MARGIN %</th>
-                                              <th style={{...phR,background:"#F2F4F7",color:"#22C55E"}}>MARGIN (KR)</th>
+                                              <th style={{...phR,background:"#F8FAFC"}}>VALUE PR WEIGHT</th>
+                                              <th style={{...phR,background:"#F8FAFC",color:"#446BF9"}}>SALES PRICE</th>
+                                              <th style={{...phR,background:"#F8FAFC",color:"#22C55E"}}>MARGIN %</th>
+                                              <th style={{...phR,background:"#F8FAFC",color:"#22C55E"}}>MARGIN (KR)</th>
                                               {["INVENTORY VALUE","TOTAL (KG)","RESERVED","ALLOCATED","AVAILABLE"].map(h=>(
-                                                <th key={h} style={{...phR,background:"#F2F4F7",color:"#667085"}}>{h}</th>
+                                                <th key={h} style={{...phR,background:"#F8FAFC"}}>{h}</th>
                                               ))}
                                             </tr>
                                           </thead>
@@ -720,6 +739,18 @@ export default function SODetail() {
                                                 <td style={pdR}>{u.available_kg.toFixed(2)}</td>
                                               </tr>
                                             ))}
+                                            <tr style={{background:"#F2F4F7"}}>
+                                              <td colSpan={8} style={pdTotL}><b>{p.pallet_units.length} unit{p.pallet_units.length!==1?"s":""}</b></td>
+                                              <td style={pdTot}></td>
+                                              <td style={pdTot}></td>
+                                              <td style={pdTot}></td>
+                                              <td style={pdTot}></td>
+                                              <td style={pdTot}><b>{n(p.pallet_units.reduce((s,u)=>s+u.inventory_value,0),3)}</b></td>
+                                              <td style={pdTot}><b>{n(p.pallet_units.reduce((s,u)=>s+u.total_kg,0),2)}</b></td>
+                                              <td style={pdTot}><b>{n(p.pallet_units.reduce((s,u)=>s+u.reserved_kg,0),2)}</b></td>
+                                              <td style={{...pdTot,color:"#446BF9"}}><b>{n(p.pallet_units.reduce((s,u)=>s+u.allocated_kg,0),2)}</b></td>
+                                              <td style={pdTot}><b>{n(p.pallet_units.reduce((s,u)=>s+u.available_kg,0),2)}</b></td>
+                                            </tr>
                                           </tbody>
                                         </table>
                                       </div>
@@ -729,24 +760,36 @@ export default function SODetail() {
                               </React.Fragment>
                               );
                             })}
+                            <tr style={{background:"#F2F4F7"}}>
+                              <td colSpan={7} style={pdTotL}><b>{visiblePallets.length} pallet{visiblePallets.length!==1?"s":""}</b></td>
+                              <td style={pdTot}></td>
+                              <td style={pdTot}></td>
+                              <td style={pdTot}></td>
+                              <td style={pdTot}></td>
+                              <td style={pdTot}><b>{n(palletInvVal,3)}</b></td>
+                              <td style={pdTot}><b>{n(palletTotKg,2)}</b></td>
+                              <td style={pdTot}><b>{n(palletResKg,2)}</b></td>
+                              <td style={{...pdTot,color:"#446BF9"}}><b>{n(palletAlcKg,2)}</b></td>
+                              <td style={pdTot}><b>{n(palletAvlKg,2)}</b></td>
+                            </tr>
                           </tbody>
                         </table>
                       </div>
-                    </div>
-                    );
+                    </>);
                   })()}
                 </div>
               );
             })()}
 
             {/* ── Cost table ── */}
-            <div style={{marginTop:20,border:"1px solid #E4E7EC",borderRadius:2,overflow:"hidden"}}>
-              <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <div style={{marginTop:20,overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"auto" as const}}>
                 <thead>
-                  <tr>
-                    <th colSpan={5} style={{...G,paddingTop:8}}>COST</th>
-                    <th colSpan={4} style={{...G,paddingTop:8,textAlign:"right" as const}}>QUANTITY</th>
-                    <th colSpan={3} style={{...G,paddingTop:8,textAlign:"right" as const}}>AMOUNT</th>
+                  <tr style={{background:"#fff"}}>
+                    <th colSpan={5} style={G}>COST</th>
+                    <th colSpan={3} style={{...G,textAlign:"right" as const}}>QUANTITY</th>
+                    <th colSpan={2} style={{...G,textAlign:"right" as const}}>AMOUNT</th>
+                    <th style={{...G,width:26,textAlign:"right" as const}}><span style={{fontFamily:"Material Icons",fontSize:13,color:"#D0D5DD"}}>view_column</span></th>
                   </tr>
                   <tr>
                     <th style={HL}>COST</th>
@@ -759,17 +802,24 @@ export default function SODetail() {
                     <th style={H}>NET WEIGHT</th>
                     <th style={H}>PRICE</th>
                     <th style={H}>TOTAL AMOUNT</th>
+                    <th style={{...H,width:26}}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan={10} style={{...C,color:"#98A2B3",textAlign:"center" as const}}>
-                      <span onClick={()=>{}} style={{fontFamily:"Material Icons",fontSize:20,color:"#446BF9",cursor:"pointer",verticalAlign:"middle",marginRight:6}}>add_circle</span>
-                      {costs.length===0?"No costs added":""}
+                  <tr style={{background:"#F8FAFC",borderBottom:"1px solid #E4E7EC"}}>
+                    <td colSpan={11} style={{padding:"4px 8px"}}>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span onClick={()=>{}} style={{fontFamily:"Material Icons",fontSize:20,color:"#003160",cursor:"pointer",lineHeight:1}}>add_circle</span>
+                      </div>
                     </td>
                   </tr>
+                  {costs.length===0 && (
+                    <tr><td colSpan={11} style={{...C,color:"#98A2B3",textAlign:"center" as const,fontSize:12}}>No costs added</td></tr>
+                  )}
                   {costs.map(c=>(
-                    <tr key={c.id} onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <tr key={c.id}
+                      onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"}
+                      onMouseLeave={e=>e.currentTarget.style.background=""}>
                       <td style={C}>{c.cost??""}</td>
                       <td style={C}>{c.included?"Yes":"No"}</td>
                       <td style={C}>{c.description??""}</td>
@@ -779,7 +829,8 @@ export default function SODetail() {
                       <td style={CR}>{n(c.gross_weight,2)}</td>
                       <td style={CR}>{n(c.net_weight,2)}</td>
                       <td style={CR}>{n(c.price,3)}</td>
-                      <td style={CR}>{n(c.total_amount,3)}</td>
+                      <td style={{...CR,fontWeight:600}}>{n(c.total_amount,3)}</td>
+                      <td style={{...C,width:26}}></td>
                     </tr>
                   ))}
                 </tbody>
@@ -787,28 +838,30 @@ export default function SODetail() {
             </div>
 
             {/* ── Discount row ── */}
-            <div style={{marginTop:16,border:"1px solid #E4E7EC",borderRadius:2,overflow:"hidden"}}>
-              <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"auto" as const}}>
                 <thead>
+                  <tr style={{background:"#fff"}}>
+                    <th colSpan={2} style={G}>GENERAL DISCOUNT</th>
+                    <th style={{...G,textAlign:"right" as const}}>AMOUNT</th>
+                    <th style={{...G,textAlign:"right" as const}}>DISCOUNT</th>
+                    <th style={G}>CALCULATION METHOD</th>
+                    <th style={{...G,textAlign:"right" as const}}>TOTAL AMOUNT</th>
+                  </tr>
                   <tr>
-                    <th style={HL}>TYPE</th>
+                    <th colSpan={2} style={HL}>TYPE</th>
                     <th style={H}>AMOUNT</th>
-                    <th style={H}>DISCOUNT</th>
-                    <th style={H}>CALCULATION METHOD</th>
+                    <th style={H}>VALUE</th>
+                    <th style={HL}>METHOD</th>
                     <th style={H}>TOTAL AMOUNT</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style={C}>General Order Discount</td>
+                  <tr onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <td colSpan={2} style={C}>General Order Discount</td>
                     <td style={CR}>{n(tot,3)}</td>
                     <td style={CR}><UIn val="0.000" save={()=>{}} w={60} r/></td>
-                    <td style={C}>
-                      <select style={{border:"none",borderBottom:"1px solid #98A2B3",padding:"3px 0",fontSize:11,color:"#344054",cursor:"pointer",background:"transparent"}}>
-                        <option>Value</option>
-                        <option>Percent</option>
-                      </select>
-                    </td>
+                    <td style={C}><USel val="Percent" opts={["Percent","Value"]} save={()=>{}} w={80}/></td>
                     <td style={{...CR,fontWeight:700}}>{n(tot,3)}</td>
                   </tr>
                 </tbody>
@@ -816,7 +869,7 @@ export default function SODetail() {
             </div>
 
             {/* ── Grand total ── */}
-            <div style={{display:"flex",justifyContent:"flex-end",padding:"12px 0 0",borderTop:"2px solid #003160",marginTop:8}}>
+            <div style={{display:"flex",justifyContent:"flex-end",padding:"12px 0 0",borderTop:"1px solid #E4E7EC",marginTop:0}}>
               <span style={{fontSize:13,fontWeight:700,color:"#003160",fontFamily:"'Roboto Mono',monospace"}}>{n(tot,3)}</span>
             </div>
           </>
@@ -873,7 +926,7 @@ export default function SODetail() {
             <button onClick={()=>{setAllocateModal(null);setAllocateQty("");}} style={{border:"none",background:"none",cursor:"pointer",color:"rgba(255,255,255,0.7)",fontFamily:"Material Icons",fontSize:18,lineHeight:1}}>close</button>
           </div>
           {/* Item info */}
-          <div style={{padding:"16px 20px 0",borderBottom:"1px solid #F2F4F7",paddingBottom:16}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid #F2F4F7"}}>
             <div style={{fontSize:11,color:"#98A2B3",fontWeight:700,textTransform:"uppercase" as const,letterSpacing:".06em",marginBottom:4}}>Item</div>
             <div style={{fontSize:13,fontWeight:600,color:"#101828"}}>{allocateModal.itemName}</div>
           </div>
