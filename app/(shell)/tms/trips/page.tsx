@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 interface Order {
   id: string;
@@ -40,6 +41,7 @@ interface Trip {
 const fBtn = (active: boolean): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", height: 36, boxSizing: "border-box" as const, borderRadius: 2, border: "1px solid transparent", background: active ? "#003160" : "#D9DBE0", color: active ? "#fff" : "#003160", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" as const, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const });
 
 export default function TMSTrips() {
+  const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -425,7 +427,7 @@ export default function TMSTrips() {
                       {selectedRows.has(trip.id) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
                     </div>
                   </td>
-                  <td style={{ padding: "9px 12px", fontWeight: 600, color: "#175CD3" }}>{trip.reference}</td>
+                  <td style={{ padding: "9px 12px", fontWeight: 600, color: "#175CD3", cursor: "pointer" }} onClick={() => router.push(`/tms/trips/${trip.id}`)}>{trip.reference}</td>
                   <td style={{ padding: "9px 12px", color: "#667085" }}>{trip.tags || "—"}</td>
                   <td style={{ padding: "9px 12px", color: "#344054" }}>{trip.from}</td>
                   <td style={{ padding: "9px 12px", color: "#344054" }}>{trip.to}</td>
