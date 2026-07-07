@@ -96,14 +96,7 @@ export default function TMSOrders() {
     cleared: orders.filter(o => o.customs_status === "Cleared").length,
     linked: orders.filter(o => o.trip_ids.length > 0).length,
     digitoll: orders.filter(o => !!o.digitoll_id).length,
-  };`;
-    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, cms_id: cmsId } : o));
-    await fetch(`/api/tms/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cms_id: cmsId }),
-    });
-  }
+  };
 
   const CONSIGNORS = ["Exporter Sv X AB", "Exporter Sv Y AB", "Nordic Freight AS", "EuroFreight AB", "ScanTrans AB", "Baltic Cargo AB"];
   const CONSIGNEES = ["Company X AS", "Company Y AS", "Baltic Lines AS", "ScanTrans Norge AS", "Nordic Import AS", "Oslo Freight AS"];
