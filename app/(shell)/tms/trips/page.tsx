@@ -96,14 +96,7 @@ export default function TMSTrips() {
     dispatched: trips.filter(t => t.trip_status === "Dispatched").length,
     planned: trips.filter(t => t.trip_status === "Planned").length,
     digitoll: trips.filter(t => !!t.digitoll_id).length,
-  };`;
-    setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cms_id: cmsId } : t));
-    await fetch(`/api/tms/trips/${trip.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cms_id: cmsId }),
-    });
-  }
+  };
 
   const FROMS    = ["Gothenburg", "Stockholm", "Malmö", "Copenhagen", "Helsingborg", "Norrköping"];
   const TOS      = ["Oslo", "Bergen", "Trondheim", "Stavanger", "Kristiansand", "Drammen"];
