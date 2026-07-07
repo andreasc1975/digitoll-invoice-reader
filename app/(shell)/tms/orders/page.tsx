@@ -96,10 +96,7 @@ export default function TMSOrders() {
     cleared: orders.filter(o => o.customs_status === "Cleared").length,
     linked: orders.filter(o => o.trip_ids.length > 0).length,
     digitoll: orders.filter(o => !!o.digitoll_id).length,
-  };
-
-  async function createCms(order: Order) {
-    const cmsId = `CMS-${order.reference.replace("ORD-", "")}`;
+  };`;
     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, cms_id: cmsId } : o));
     await fetch(`/api/tms/orders/${order.id}`, {
       method: "PATCH",
@@ -353,7 +350,7 @@ export default function TMSOrders() {
                   {selectedRows.size > 0 && selectedRows.size < filtered.length && <span style={{ width: 6, height: 2, background: "#446BF9", display: "block", borderRadius: 1 }} />}
                 </div>
               </th>
-              {["Reference", "Tags", "Service", "Consignor", "Consignee", "Departure", "Arrival", "Customs", "Gross kg", "Packages", "Planning", "Dep. Status", "Trips", "Digitoll ID", "CMS ID"].map((h, i) => (
+              {["Reference", "Tags", "Service", "Consignor", "Consignee", "Departure", "Arrival", "Customs", "Gross kg", "Packages", "Planning", "Dep. Status", "Trips", "Digitoll ID", ].map((h, i) => (
                 <th key={i} style={{ padding: "9px 12px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#003160", letterSpacing: ".04em", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>

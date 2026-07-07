@@ -96,10 +96,7 @@ export default function TMSTrips() {
     dispatched: trips.filter(t => t.trip_status === "Dispatched").length,
     planned: trips.filter(t => t.trip_status === "Planned").length,
     digitoll: trips.filter(t => !!t.digitoll_id).length,
-  };
-
-  async function createCms(trip: Trip) {
-    const cmsId = `CMS-TR-${trip.reference.replace("TR-", "")}`;
+  };`;
     setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cms_id: cmsId } : t));
     await fetch(`/api/tms/trips/${trip.id}`, {
       method: "PATCH",
