@@ -104,6 +104,29 @@ export default function TMSTrips() {
   const TAGS     = ["", "", "Express", "Priority", ""];
   const STATUSES = ["Dispatched", "Planned", "Planned", "Planned"];
 
+  const DRIVERS = [
+    { name: "Lars Eriksson",     contact: "+46 70 123 45 67" },
+    { name: "Bjørn Hansen",      contact: "+47 91 234 56 78" },
+    { name: "Mikael Lindqvist",  contact: "+46 73 345 67 89" },
+    { name: "Ole Pedersen",      contact: "+47 98 456 78 90" },
+    { name: "Stefan Johansson",  contact: "+46 76 567 89 01" },
+    { name: "Knut Andersen",     contact: "+47 90 678 90 12" },
+    { name: "Anders Nilsson",    contact: "+46 70 789 01 23" },
+    { name: "Erik Christiansen", contact: "+47 92 890 12 34" },
+    { name: "Per Magnusson",     contact: "+46 72 901 23 45" },
+    { name: "Tor Olsen",         contact: "+47 93 012 34 56" },
+  ];
+  const CROSSINGS_FOR: Record<string, string> = {
+    "Oslo": "Svinesund (E6)", "Bergen": "Svinesund (E6)",
+    "Stavanger": "Svinesund (E6)", "Drammen": "Svinesund (E6)",
+    "Kristiansand": "Ørje (E18)", "Trondheim": "Storlien (E14)",
+    "Tromsø": "Björnfjell / Riksgransen (E10)",
+  };
+  const NAT_FOR: Record<string, string> = {
+    "Gothenburg": "SE", "Stockholm": "SE", "Malmö": "SE",
+    "Helsingborg": "SE", "Norrköping": "SE", "Copenhagen": "DK",
+  };
+
   function generateTrip(): Trip {
     const id = `gen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const dep = new Date(Date.now() + Math.random() * 14 * 86400000);
@@ -130,6 +153,16 @@ export default function TMSTrips() {
       order_ids: [],
       digitoll_id: null,
       cms_id: null,
+      vehicle_reg_no:          RESOURCES[Math.floor(Math.random() * RESOURCES.length)],
+      vehicle_nationality:     NAT_FOR[fromCity] ?? "SE",
+      driver_name:             DRIVERS[Math.floor(Math.random() * DRIVERS.length)].name,
+      driver_contact:          DRIVERS[Math.floor(Math.random() * DRIVERS.length)].contact,
+      customs_place:           CROSSINGS_FOR[toCity] ?? "Svinesund (E6)",
+      customs_place_eta_date:  new Date((dep.getTime() + arr.getTime()) / 2).toISOString().slice(0, 10),
+      customs_place_eta_time:  new Date((dep.getTime() + arr.getTime()) / 2).toISOString().slice(11, 16),
+      means_of_transport_code: "31",
+      transport_mode:          "Road",
+      customs_representative:  null,
     };
   }
 
