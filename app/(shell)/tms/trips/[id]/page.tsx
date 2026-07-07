@@ -62,7 +62,7 @@ export default function TripDetail() {
   const router = useRouter();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("General");
+  const [tab, setTab] = useState("Customs");
   const [customsForm, setCustomsForm] = useState({
     vehicle_reg_no: "",
     vehicle_nationality: "",
