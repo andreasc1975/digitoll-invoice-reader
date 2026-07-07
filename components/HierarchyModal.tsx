@@ -109,43 +109,7 @@ export function HierarchyModal({ type: initialType, id: initialId, onClose, onEd
               <button onClick={onClose} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
 
-            {navBadges.length > 1 && (
-              <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6 }}>
-                {transports.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    {transports.map(b => (
-                      <NavBadge key={b.id} type="transport" label={b.label}
-                        active={type === "transport" && id === b.id}
-                        onClick={() => { setMode("view"); setType("transport"); setId(b.id); }} />
-                    ))}
-                  </div>
-                )}
-                {transports.length > 0 && (masters.length > 0 || houses.length > 0) && (
-                  <span style={{ color: "#D0D5DD", fontSize: 16, alignSelf: "center" }}>›</span>
-                )}
-                {masters.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    {masters.map(b => (
-                      <NavBadge key={b.id} type="master" label={b.label}
-                        active={type === "master" && id === b.id}
-                        onClick={() => { setMode("view"); setType("master"); setId(b.id); }} />
-                    ))}
-                  </div>
-                )}
-                {masters.length > 0 && houses.length > 0 && (
-                  <span style={{ color: "#D0D5DD", fontSize: 16, alignSelf: "center" }}>›</span>
-                )}
-                {houses.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: 4 }}>
-                    {houses.map(b => (
-                      <NavBadge key={b.id} type="house" label={b.label}
-                        active={type === "house" && id === b.id}
-                        onClick={() => { setMode("view"); setType("house"); setId(b.id); }} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+
           </div>
 
           {/* Body */}

@@ -82,30 +82,15 @@ export default function OrderDetail() {
     }
   }, []);
 
+  const [sendMode, setSendMode] = useState<"linked"|"standalone"|null>(null);
+
   async function sendToDigitoll() {
     setSending(true);
     setSendError(null);
-    const res = await fetch("/api/houses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        exporter:          order?.consignor ?? null,
-        importer:          order?.consignee ?? null,
-        goods_description: order?.service_code ?? null,
-        gross_weight:      order?.gross_weight ? String(order.gross_weight) : null,
-        number_of_packages: order?.packages ?? null,
-        customs_status:    order?.customs_status === "Cleared" ? "cleared" : "pending",
-        tms_order_id:      order?.id,
-        source:            "tms",
-      }),
-    });
+    const res = await fetch(`/api/tms/orders/${id}/send-digitoll`, { method: "POST" });
     if (res.ok) {
-      const house = await res.json();
-      await fetch(`/api/tms/orders/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ digitoll_id: house.state_id }),
-      });
+      const d = await res.json();
+      setSendMode(d.mode);
       await load();
     } else {
       const d = await res.json().catch(() => ({}));
@@ -303,27 +288,29 @@ export default function OrderDetail() {
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: "#027A48" }}>Sent to Digitoll</div>
                   <div style={{ fontSize: 11, color: "#065F46", marginTop: 2 }}>
                     House ID: <span style={{ fontWeight: 600 }}>{order.digitoll_id}</span>
+                    {sendMode === "linked" && <span style={{ marginLeft: 10, background: "#D1FAE5", padding: "1px 6px", borderRadius: 2, fontSize: 10, fontWeight: 700 }}>Linked to trip</span>}
+                    {sendMode === "standalone" && <span style={{ marginLeft: 10, background: "#E0F2FE", padding: "1px 6px", borderRadius: 2, fontSize: 10, fontWeight: 700, color: "#0369A1" }}>Standalone submission</span>}
                   </div>
                 </div>
               </div>
             ) : (
               <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#98A2B3" }}>cloud_upload</span>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: "#344054" }}>Not sent to Digitoll</div>
                   <div style={{ fontSize: 11, color: "#667085", marginTop: 2 }}>
-                    {linkedTrips.length === 0
-                      ? "Link this order to a trip first — the trip handles the Digitoll submission."
-                      : "This order will be included when its trip is sent to Digitoll."}
+                    {linkedTrips.some(t => t.digitoll_id)
+                      ? "A linked trip is in Digitoll — this order will be attached to that trip's Master."
+                      : linkedTrips.length > 0
+                      ? "Linked to a trip not yet in Digitoll — will create standalone submission."
+                      : "No trip linked — will create a standalone Transport + Master + House in Digitoll."}
                   </div>
                 </div>
-                {linkedTrips.length > 0 && (
-                  <button onClick={sendToDigitoll} disabled={sending}
-                    style={{ marginLeft: "auto", padding: "8px 20px", border: "none", borderRadius: 2, background: "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>send</span>
-                    {sending ? "Sending…" : "Send to Digitoll"}
-                  </button>
-                )}
+                <button onClick={sendToDigitoll} disabled={sending}
+                  style={{ marginLeft: "auto", padding: "8px 20px", border: "none", borderRadius: 2, background: sending ? "#98A2B3" : "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>send</span>
+                  {sending ? "Sending…" : "Send to Digitoll"}
+                </button>
               </div>
             )}
 
