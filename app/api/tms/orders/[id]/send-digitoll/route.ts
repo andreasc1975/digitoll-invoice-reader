@@ -21,6 +21,7 @@ export async function POST(
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
   let masterId: string | null = null;
+  let transportIdForSubmit: string | null = null;
   let mode = "standalone";
 
   // 2. Check if any linked trip has already been sent to Digitoll
@@ -44,6 +45,7 @@ export async function POST(
       if (master) {
         masterId = master.id;
         mode = "linked";
+        transportIdForSubmit = trip.digitoll_transport_id;
       }
     }
   }
@@ -85,6 +87,7 @@ export async function POST(
     }
 
     masterId = master.id;
+    transportIdForSubmit = transport?.id ?? null;
   }
 
   // 4. Create House
@@ -115,8 +118,9 @@ export async function POST(
 
   return NextResponse.json({
     mode,
-    house_id:  house.id,
-    house_ref: house.state_id,
-    master_id: masterId,
+    house_id:     house.id,
+    house_ref:    house.state_id,
+    master_id:    masterId,
+    transport_id: transportIdForSubmit,
   });
 }

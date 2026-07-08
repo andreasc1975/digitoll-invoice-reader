@@ -72,6 +72,7 @@ export default function OrderDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string|null>(null);
   const [submitResult, setSubmitResult] = useState<{mrn?:string}|null>(null);
+  const [transportId, setTransportId] = useState<string|null>(null);
   const [form, setForm] = useState<Partial<Order>>({});
 
   const load = useCallback(async () => {
@@ -117,8 +118,9 @@ export default function OrderDetail() {
       const d = await res.json();
       setSendMode(d.mode);
       // Now submit the transport node
-      if (d.transport_id) {
-        const submitRes = await fetch(`/api/transports/${d.transport_id}/submit`, { method: "POST" });
+      const tid = d.transport_id ?? transportId;
+      if (tid) {
+        const submitRes = await fetch(`/api/transports/${tid}/submit`, { method: "POST" });
         if (submitRes.ok) {
           const s = await submitRes.json();
           setSubmitResult({ mrn: s.mrn });
