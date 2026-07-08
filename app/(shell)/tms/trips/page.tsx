@@ -32,6 +32,19 @@ interface Trip {
   order_ids: string[];
   digitoll_id: string | null;
   cms_id: string | null;
+  vehicle_reg_no?: string | null;
+  vehicle_nationality?: string | null;
+  driver_name?: string | null;
+  driver_contact?: string | null;
+  customs_place?: string | null;
+  customs_place_eta_date?: string | null;
+  customs_place_eta_time?: string | null;
+  means_of_transport_code?: string | null;
+  transport_mode?: string | null;
+  customs_representative?: string | null;
+  is_domestic?: boolean | null;
+  fortolling_type?: string | null;
+  external_mrn?: string | null;
 }
 
 

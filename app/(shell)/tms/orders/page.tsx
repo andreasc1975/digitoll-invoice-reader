@@ -456,7 +456,7 @@ export default function TMSOrders() {
                   <td style={{ padding: "9px 12px" }}>
                     {order.cms_id
                       ? <span style={{ fontSize: 11.5, fontWeight: 600, color: "#027A48" }}>{order.cms_id}</span>
-                      : <button onClick={() => createCms(order)} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 2, background: "transparent", color: "#667085", fontSize: 11.5, fontWeight: 600, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
+                      : <button onClick={() => {}} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 2, background: "transparent", color: "#667085", fontSize: 11.5, fontWeight: 600, border: "1px solid #D0D5DD", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
                           + Declaration
                         </button>
                     }
