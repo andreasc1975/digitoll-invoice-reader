@@ -109,14 +109,7 @@ export default function TripDetail() {
     setSavingMrn(false);
   }
 
-  const COUNTRY_FOR: Record<string, string> = {
-    "Gothenburg": "SE", "Stockholm": "SE", "Malmö": "SE", "Norrköping": "SE", "Helsingborg": "SE",
-    "Oslo": "NO", "Bergen": "NO", "Trondheim": "NO", "Stavanger": "NO", "Kristiansand": "NO", "Drammen": "NO", "Tromsø": "NO",
-    "Copenhagen": "DK", "Aarhus": "DK", "Padborg": "DK",
-  };
-  const fromCountry = trip ? (COUNTRY_FOR[trip.from_city ?? ""] ?? "??") : "??";
-  const toCountry   = trip ? (COUNTRY_FOR[trip.to_city   ?? ""] ?? "??") : "??";
-  const isDomestic  = trip?.is_domestic ?? (fromCountry === toCountry && fromCountry !== "??");
+
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "Inter,sans-serif", background: "#fff" }}>
