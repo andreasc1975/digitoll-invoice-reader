@@ -67,6 +67,7 @@ export default function TMSTrips() {
   const [linkModal, setLinkModal] = useState<{ tripId: string } | null>(null);
   const [createModal, setCreateModal] = useState(false);
   const [createCount, setCreateCount] = useState(1);
+  const [createDomestic, setCreateDomestic] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function TMSTrips() {
   };
 
   const FROMS    = ["Gothenburg", "Stockholm", "Malmö", "Copenhagen", "Helsingborg", "Norrköping"];
+  const NO_CITIES = ["Oslo", "Bergen", "Trondheim", "Stavanger", "Kristiansand", "Drammen", "Tromsø", "Ålesund", "Fredrikstad", "Sandnes"];
   const TOS      = ["Oslo", "Bergen", "Trondheim", "Stavanger", "Kristiansand", "Drammen"];
   const RESOURCES = ["ABC123", "XYZ456", "DEF789", "GHI012", "JKL345", "MNO678"];
   const TAGS     = ["", "", "Express", "Priority", ""];
@@ -132,8 +134,12 @@ export default function TMSTrips() {
     const dep = new Date(Date.now() + Math.random() * 14 * 86400000);
     const arr = new Date(dep.getTime() + (6 + Math.random() * 18) * 3600000);
     const num = Math.floor(6754 + Math.random() * 1000);
-    const fromCity = FROMS[Math.floor(Math.random() * FROMS.length)];
-    const toCity   = TOS[Math.floor(Math.random() * TOS.length)];
+    const fromCity = createDomestic
+      ? NO_CITIES[Math.floor(Math.random() * NO_CITIES.length)]
+      : FROMS[Math.floor(Math.random() * FROMS.length)];
+    const toCity = createDomestic
+      ? NO_CITIES.filter(c => c !== fromCity)[Math.floor(Math.random() * (NO_CITIES.length - 1))]
+      : TOS[Math.floor(Math.random() * TOS.length)];
     const pkgs = Math.floor(4 + Math.random() * 30);
     return {
       id,
@@ -163,6 +169,7 @@ export default function TMSTrips() {
       means_of_transport_code: "31",
       transport_mode:          "Road",
       customs_representative:  null,
+      is_domestic:             createDomestic,
     };
   }
 
@@ -302,12 +309,32 @@ export default function TMSTrips() {
               <div style={{ fontSize: 13, fontWeight: 700, color: "#101828", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>Create Trips</div>
               <button onClick={() => setCreateModal(false)} style={{ width: 28, height: 28, border: "1px solid #E4E7EC", borderRadius: 2, background: "#fff", cursor: "pointer", fontSize: 16, color: "#667085", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            <div style={{ padding: "20px" }}>
-              <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Number of trips to create</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <button onClick={() => setCreateCount(c => Math.max(1, c - 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>−</button>
-                <span style={{ fontSize: 20, fontWeight: 700, color: "#101828", minWidth: 32, textAlign: "center" as const }}>{createCount}</span>
-                <button onClick={() => setCreateCount(c => Math.min(50, c + 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>+</button>
+            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Number of trips to create</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button onClick={() => setCreateCount(c => Math.max(1, c - 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>−</button>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: "#101828", minWidth: 32, textAlign: "center" as const }}>{createCount}</span>
+                  <button onClick={() => setCreateCount(c => Math.min(50, c + 1))} style={{ width: 32, height: 32, borderRadius: 2, border: "1px solid #D0D5DD", background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#344054" }}>+</button>
+                </div>
+              </div>
+              <div style={{ borderTop: "1px solid #F2F4F7", paddingTop: 16 }}>
+                <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "#344054", marginBottom: 10, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>Route type</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[
+                    { val: false, label: "Utrikes", icon: "public", desc: "SE/DK → NO" },
+                    { val: true,  label: "Inrikes",  icon: "home",   desc: "Innen Norge" },
+                  ].map(({ val, label, icon, desc }) => (
+                    <button key={String(val)} onClick={() => setCreateDomestic(val)}
+                      style={{ flex: 1, padding: "10px 12px", borderRadius: 2, border: `2px solid ${createDomestic === val ? "#446BF9" : "#E4E7EC"}`, background: createDomestic === val ? "#EEF4FF" : "#fff", cursor: "pointer", textAlign: "left" as const, fontFamily: "inherit" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 14, color: createDomestic === val ? "#446BF9" : "#98A2B3" }}>{icon}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: createDomestic === val ? "#446BF9" : "#344054" }}>{label}</span>
+                      </div>
+                      <div style={{ fontSize: 10.5, color: "#98A2B3" }}>{desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
