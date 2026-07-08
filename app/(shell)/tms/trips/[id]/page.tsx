@@ -66,6 +66,12 @@ export default function TripDetail() {
 
   useEffect(() => { load(); }, [load]);
 
+  const COUNTRY_FOR: Record<string,string> = { "Gothenburg":"SE","Stockholm":"SE","Malmö":"SE","Norrköping":"SE","Helsingborg":"SE","Oslo":"NO","Bergen":"NO","Trondheim":"NO","Stavanger":"NO","Kristiansand":"NO","Drammen":"NO","Tromsø":"NO","Copenhagen":"DK","Aarhus":"DK","Padborg":"DK" };
+  const fromCountry = COUNTRY_FOR[trip?.from_city ?? ""] ?? "??";
+  const toCountry   = COUNTRY_FOR[trip?.to_city   ?? ""] ?? "??";
+  const isDomestic  = trip?.is_domestic ?? (fromCountry === toCountry && fromCountry !== "??");
+  const canSend = !!(customsForm.vehicle_reg_no && customsForm.customs_place && customsForm.transport_mode && orders.length > 0);
+
   useEffect(() => {
     if (!document.querySelector("link[href*='Material+Icons']")) {
       const l = document.createElement("link");
@@ -85,13 +91,6 @@ export default function TripDetail() {
       Trip not found
     </div>
   );
-
-  const COUNTRY_FOR: Record<string,string> = { "Gothenburg":"SE","Stockholm":"SE","Malmö":"SE","Norrköping":"SE","Helsingborg":"SE","Oslo":"NO","Bergen":"NO","Trondheim":"NO","Stavanger":"NO","Kristiansand":"NO","Drammen":"NO","Tromsø":"NO","Copenhagen":"DK","Aarhus":"DK","Padborg":"DK" };
-  const fromCountry = COUNTRY_FOR[trip.from_city ?? ""] ?? "??";
-  const toCountry   = COUNTRY_FOR[trip.to_city   ?? ""] ?? "??";
-  const isDomestic  = trip.is_domestic ?? (fromCountry === toCountry && fromCountry !== "??");
-  const canSend = !!(customsForm.vehicle_reg_no && customsForm.customs_place && customsForm.transport_mode && orders.length > 0);
-
   async function saveFortolling(type: "egen"|"ekstern") {
     setFortollingType(type);
     await fetch(`/api/tms/trips/${id}`, {
