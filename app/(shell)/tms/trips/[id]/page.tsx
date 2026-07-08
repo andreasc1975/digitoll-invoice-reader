@@ -70,7 +70,7 @@ export default function TripDetail() {
   const fromCountry = COUNTRY_FOR[trip?.from_city ?? ""] ?? "??";
   const toCountry   = COUNTRY_FOR[trip?.to_city   ?? ""] ?? "??";
   const isDomestic  = trip?.is_domestic ?? (fromCountry === toCountry && fromCountry !== "??");
-  const canSend = !!(customsForm.vehicle_reg_no && customsForm.customs_place && customsForm.transport_mode && orders.length > 0);
+  const canSend = !!(trip?.vehicle_reg_no && trip?.customs_place && trip?.transport_mode && (trip?.order_ids?.length ?? 0) > 0);
 
   useEffect(() => {
     if (!document.querySelector("link[href*='Material+Icons']")) {
