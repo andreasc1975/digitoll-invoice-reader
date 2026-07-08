@@ -282,31 +282,64 @@ export default function OrderDetail() {
         ) : (
           <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
 
-            {/* STATUS BANNER */}
-            {order.digitoll_id ? (
-              <div style={{ background: "#ECFDF3", border: "1px solid #A7F0BA", borderRadius: 4, padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#027A48" }}>check_circle</span>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#027A48" }}>Sent to Digitoll</div>
-                  <div style={{ fontSize: 11, color: "#065F46", marginTop: 2 }}>
-                    House ID: <span style={{ fontWeight: 600 }}>{order.digitoll_id}</span>
-                    {sendMode === "linked" && <span style={{ marginLeft: 10, background: "#D1FAE5", padding: "1px 6px", borderRadius: 2, fontSize: 10, fontWeight: 700 }}>Linked to trip</span>}
-                    {sendMode === "standalone" && <span style={{ marginLeft: 10, background: "#E0F2FE", padding: "1px 6px", borderRadius: 2, fontSize: 10, fontWeight: 700, color: "#0369A1" }}>Standalone</span>}
+            {/* STATUS BANNER — Two step flow */}
+            {(() => {
+              const hasGoods = goodsLinesLoaded && goodsLines.some(l => l.description);
+              const canCreate = !!(order.consignor && order.consignee && hasGoods);
+              const canSubmit = !!(order.digitoll_id || transportId);
+              const missing: string[] = [];
+              if (!order.consignor) missing.push("Consignor");
+              if (!order.consignee) missing.push("Consignee");
+              if (!hasGoods) missing.push("At least one goods line with description");
+              return (
+                <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+                  {/* Step indicators */}
+                  <div style={{ display: "flex", borderBottom: "1px solid #F2F4F7" }}>
+                    {[
+                      { step: 1, label: "Create House in Digitoll", done: !!order.digitoll_id },
+                      { step: 2, label: "Submit Declaration to Tolletaten", done: !!submitResult?.mrn },
+                    ].map(({ step, label, done }, i) => (
+                      <div key={step} style={{ flex: 1, padding: "14px 20px", display: "flex", alignItems: "center", gap: 12, borderRight: i === 0 ? "1px solid #F2F4F7" : "none", background: done ? "#F0FDF4" : "#fff" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: done ? "#22C55E" : "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {done
+                            ? <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#fff" }}>check</span>
+                            : <span style={{ fontSize: 11, fontWeight: 700, color: "#667085" }}>{step}</span>}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: "#98A2B3", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Step {step}</div>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, color: done ? "#027A48" : "#344054" }}>{label}</div>
+                          {step === 1 && order.digitoll_id && <div style={{ fontSize: 10.5, color: "#027A48", marginTop: 2 }}>House: {order.digitoll_id}{sendMode === "linked" ? " · Linked to trip" : sendMode === "standalone" ? " · Standalone" : ""}</div>}
+                          {step === 2 && submitResult?.mrn && <div style={{ fontSize: 10.5, color: "#027A48", marginTop: 2 }}>MRN: {submitResult.mrn}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Action row */}
+                  <div style={{ padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+                    {missing.length > 0 && !order.digitoll_id && (
+                      <div style={{ fontSize: 11, color: "#F59E0B", display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 14 }}>warning</span>
+                        Missing: {missing.join(", ")}
+                      </div>
+                    )}
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                      {!order.digitoll_id && (
+                        <button onClick={sendToDigitoll} disabled={sending || !canCreate}
+                          style={{ padding: "8px 18px", border: "none", borderRadius: 2, background: (sending || !canCreate) ? "#E4E7EC" : "#003160", color: (sending || !canCreate) ? "#98A2B3" : "#fff", fontSize: 12, fontWeight: 700, cursor: (sending || !canCreate) ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>inventory</span>
+                          {sending ? "Creating…" : "Create House in Digitoll"}
+                        </button>
+                      )}
+                      <button onClick={submitDeclaration} disabled={submitting || !canSubmit}
+                        style={{ padding: "8px 18px", border: "none", borderRadius: 2, background: (submitting || !canSubmit) ? "#E4E7EC" : "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)", color: (submitting || !canSubmit) ? "#98A2B3" : "#fff", fontSize: 12, fontWeight: 700, cursor: (submitting || !canSubmit) ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>send</span>
+                        {submitting ? "Submitting…" : "Submit Declaration to Tolletaten"}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#98A2B3" }}>cloud_upload</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#344054" }}>Not sent to Digitoll</div>
-                  <div style={{ fontSize: 11, color: "#667085", marginTop: 2 }}>
-                    {linkedTrips.some(t => t.digitoll_id) ? "A linked trip is in Digitoll — this order will attach to that Master." : "Fill in the declaration details below, then send."}
-                  </div>
-                </div>
-
-              </div>
-            )}
+              );
+            })()}
 
             {sendError && (
               <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 4, padding: "10px 16px", fontSize: 12, color: "#B42318", display: "flex", alignItems: "center", gap: 8 }}>
