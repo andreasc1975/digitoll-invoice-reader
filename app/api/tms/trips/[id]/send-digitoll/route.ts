@@ -4,9 +4,11 @@ import { supabaseAdmin } from "@/lib/supabase";
 // POST /api/tms/trips/[id]/send-digitoll
 // Creates Transport → Master → Houses from TMS trip data
 export async function POST(
-  _: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const url = new URL(req.url);
+  const isAuto = url.searchParams.get("auto") === "1";
   const db = supabaseAdmin();
   const { id } = await params;
 
@@ -102,7 +104,7 @@ export async function POST(
   await db.from("tms_trips").update({
     digitoll_id:           transport.state_id,
     digitoll_transport_id: transport.id,
-    digitoll_synced_at:    new Date().toISOString(),
+    ...(isAuto ? {} : { digitoll_synced_at: new Date().toISOString() }),
   }).eq("id", id);
 
   return NextResponse.json({

@@ -19,6 +19,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const db = supabaseAdmin();
   const body = await req.json();
+
   const { data, error } = await db
     .from("tms_trips")
     .insert({
@@ -36,9 +37,8 @@ export async function POST(req: NextRequest) {
       loading_meters:          body.loading_meters ?? null,
       resource:                body.resource ?? null,
       order_ids:               body.order_ids ?? [],
-      digitoll_id:             body.digitoll_id ?? null,
-      cms_id:                  body.cms_id ?? null,
-      // Customs fields
+      digitoll_id:             null,
+      cms_id:                  null,
       vehicle_reg_no:          body.vehicle_reg_no ?? null,
       vehicle_nationality:     body.vehicle_nationality ?? null,
       driver_name:             body.driver_name ?? null,
@@ -47,11 +47,15 @@ export async function POST(req: NextRequest) {
       customs_place_eta_date:  body.customs_place_eta_date ?? null,
       customs_place_eta_time:  body.customs_place_eta_time ?? null,
       means_of_transport_code: body.means_of_transport_code ?? null,
-      transport_mode:          body.transport_mode ?? null,
+      transport_mode:          body.transport_mode ?? "Road",
       customs_representative:  body.customs_representative ?? null,
+      is_domestic:             body.is_domestic ?? false,
+      fortolling_type:         "egen",
+      external_mrn:            null,
     })
     .select()
     .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ...data, from: data.from_city, to: data.to_city }, { status: 201 });
 }
