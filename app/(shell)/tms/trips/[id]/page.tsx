@@ -111,6 +111,7 @@ export default function TripDetail() {
   const fromCountry = trip ? (COUNTRY_FOR[trip.from_city ?? ""] ?? "??") : "??";
   const toCountry   = trip ? (COUNTRY_FOR[trip.to_city   ?? ""] ?? "??") : "??";
   const isDomestic  = trip?.is_domestic ?? (fromCountry === toCountry && fromCountry !== "??");
+  const canSend = !!(customsForm.vehicle_reg_no && customsForm.customs_place && customsForm.transport_mode && orders.length > 0);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "Inter,sans-serif", background: "#fff" }}>
