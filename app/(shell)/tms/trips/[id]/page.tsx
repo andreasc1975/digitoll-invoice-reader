@@ -44,6 +44,8 @@ export default function TripDetail() {
   const [externalMrn, setExternalMrn] = useState("");
   const [savingMrn, setSavingMrn] = useState(false);
   const [hierarchyOpen, setHierarchyOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string|null>(null);
   const [orders, setOrders] = useState<{id:string;reference:string;consignor:string|null;consignee:string|null;digitoll_id:string|null;gross_weight:number|null;packages:number|null}[]>([]);
 
   const load = useCallback(async () => {
@@ -106,6 +108,35 @@ export default function TripDetail() {
       body: JSON.stringify({ external_mrn: externalMrn }),
     });
     setSavingMrn(false);
+  }
+
+  async function sendToDigitoll() {
+    setSending(true);
+    setSendError(null);
+    await fetch(`/api/tms/trips/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vehicle_reg_no:          customsForm.vehicle_reg_no || null,
+        vehicle_nationality:     customsForm.vehicle_nationality || null,
+        driver_name:             customsForm.driver_name || null,
+        driver_contact:          customsForm.driver_contact || null,
+        customs_place:           customsForm.customs_place || null,
+        customs_representative:  customsForm.customs_representative || null,
+        means_of_transport_code: customsForm.means_of_transport_code || null,
+        customs_place_eta_date:  customsForm.customs_place_eta_date || null,
+        customs_place_eta_time:  customsForm.customs_place_eta_time || null,
+        transport_mode:          customsForm.transport_mode || null,
+      }),
+    });
+    const res = await fetch(`/api/tms/trips/${id}/send-digitoll`, { method: "POST" });
+    if (res.ok) {
+      await load();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setSendError(d.error ?? "Failed to send to Digitoll");
+    }
+    setSending(false);
   }
 
 
