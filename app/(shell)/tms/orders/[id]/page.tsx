@@ -68,6 +68,10 @@ export default function OrderDetail() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendMode, setSendMode] = useState<"linked"|"standalone"|null>(null);
+  const [goodsLinesLoaded, setGoodsLinesLoaded] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string|null>(null);
+  const [submitResult, setSubmitResult] = useState<{mrn?:string}|null>(null);
   const [form, setForm] = useState<Partial<Order>>({});
 
   const load = useCallback(async () => {
@@ -91,7 +95,7 @@ export default function OrderDetail() {
       }
       // Load goods lines
       const gl = await fetch(`/api/tms/orders/${id}/goods-lines`);
-      if (gl.ok) setGoodsLines(await gl.json());
+      if (gl.ok) { setGoodsLines(await gl.json()); setGoodsLinesLoaded(true); }
     }
     setLoading(false);
   }, [id]);
@@ -104,6 +108,29 @@ export default function OrderDetail() {
       document.head.appendChild(l);
     }
   }, []);
+
+  async function submitDeclaration() {
+    setSubmitting(true);
+    setSubmitError(null);
+    const res = await fetch(`/api/tms/orders/${id}/send-digitoll`, { method: "POST" });
+    if (res.ok) {
+      const d = await res.json();
+      setSendMode(d.mode);
+      // Now submit the transport node
+      if (d.transport_id) {
+        const submitRes = await fetch(`/api/transports/${d.transport_id}/submit`, { method: "POST" });
+        if (submitRes.ok) {
+          const s = await submitRes.json();
+          setSubmitResult({ mrn: s.mrn });
+        }
+      }
+      await load();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setSubmitError(d.error ?? "Submission failed");
+    }
+    setSubmitting(false);
+  }
 
   async function save(patch: Partial<Order>) {
     setForm(prev => ({ ...prev, ...patch }));
@@ -141,6 +168,12 @@ export default function OrderDetail() {
     else { const d = await res.json().catch(() => ({})); setSendError(d.error ?? "Failed"); }
     setSending(false);
   }
+
+  // Aggregated from goods lines
+  const totalGrossWeight = goodsLines.reduce((s, l) => s + (l.gross_weight ?? 0), 0);
+  const totalNetWeight   = goodsLines.reduce((s, l) => s + (l.net_weight ?? 0), 0);
+  const totalStatValue   = goodsLines.reduce((s, l) => s + (l.statistical_value ?? 0), 0);
+  const totalPackages    = goodsLines.reduce((s, l) => s + (l.packages ?? 0), 0);
 
   if (loading) return <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#98A2B3", fontSize: 13, fontFamily: "Inter,sans-serif" }}>Loading…</div>;
   if (!order) return <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#EF4444", fontSize: 13, fontFamily: "Inter,sans-serif" }}>Order not found</div>;
@@ -269,18 +302,7 @@ export default function OrderDetail() {
                     {linkedTrips.some(t => t.digitoll_id) ? "A linked trip is in Digitoll — this order will attach to that Master." : "Fill in the declaration details below, then send."}
                   </div>
                 </div>
-                {(() => {
-                  const hasGoods = goodsLines.some(l => l.description);
-                  const canSend = !!(order.consignor && order.consignee && order.gross_weight && order.packages && hasGoods);
-                  return (
-                    <button onClick={sendToDigitoll} disabled={sending || !canSend}
-                      title={!canSend ? "Required: Consignor, Consignee, Gross weight, Packages, and at least one goods line with description" : ""}
-                      style={{ padding: "8px 20px", border: "none", borderRadius: 2, background: (!canSend || sending) ? "#D0D5DD" : "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)", color: (!canSend || sending) ? "#98A2B3" : "#fff", fontSize: 12, fontWeight: 700, cursor: (!canSend || sending) ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                      <span style={{ fontFamily: "Material Icons", fontSize: 15, lineHeight: 1 }}>send</span>
-                      {sending ? "Sending…" : "Send to Digitoll"}
-                    </button>
-                  );
-                })()}
+
               </div>
             )}
 
@@ -324,8 +346,8 @@ export default function OrderDetail() {
                   <input style={inp} value={form.invoice_number ?? ""} onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))} onBlur={e => save({ invoice_number: e.target.value })} placeholder="INV-2026-001" />
                 </div>
                 <div>
-                  <FL required>Invoice Value</FL>
-                  <input style={inp} type="number" value={form.invoice_value ?? ""} onChange={e => setForm(f => ({ ...f, invoice_value: parseFloat(e.target.value) || null }))} onBlur={e => save({ invoice_value: parseFloat(e.target.value) || null })} placeholder="0.00" />
+                  <FL>Statistical Value (aggregated)</FL>
+                  <div style={{ ...inp, background: "#F8FAFC", color: "#344054", fontFamily: "'Roboto Mono',monospace" }}>{totalStatValue.toFixed(2)}</div>
                 </div>
                 <div>
                   <FL>Currency</FL>
@@ -341,12 +363,20 @@ export default function OrderDetail() {
                   </select>
                 </div>
                 <div>
-                  <FL>Country of Origin</FL>
-                  <input style={inp} value={form.country_of_origin ?? ""} onChange={e => setForm(f => ({ ...f, country_of_origin: e.target.value }))} onBlur={e => save({ country_of_origin: e.target.value })} placeholder="e.g. SE, NO, PL" />
+                  <FL>Gross Weight (aggregated)</FL>
+                  <div style={{ ...inp, background: "#F8FAFC", color: "#344054", fontFamily: "'Roboto Mono',monospace" }}>{totalGrossWeight.toFixed(2)} kg</div>
                 </div>
                 <div>
-                  <FL>Net Weight (kg)</FL>
-                  <input style={inp} type="number" value={form.net_weight ?? ""} onChange={e => setForm(f => ({ ...f, net_weight: parseFloat(e.target.value) || null }))} onBlur={e => save({ net_weight: parseFloat(e.target.value) || null })} placeholder="0.00" />
+                  <FL>Net Weight (aggregated)</FL>
+                  <div style={{ ...inp, background: "#F8FAFC", color: "#344054", fontFamily: "'Roboto Mono',monospace" }}>{totalNetWeight.toFixed(2)} kg</div>
+                </div>
+                <div>
+                  <FL>Total Packages (aggregated)</FL>
+                  <div style={{ ...inp, background: "#F8FAFC", color: "#344054", fontFamily: "'Roboto Mono',monospace" }}>{totalPackages}</div>
+                </div>
+                <div>
+                  <FL>Country of Origin</FL>
+                  <input style={inp} value={form.country_of_origin ?? ""} onChange={e => setForm(f => ({ ...f, country_of_origin: e.target.value }))} onBlur={e => save({ country_of_origin: e.target.value })} placeholder="e.g. SE, NO, PL" />
                 </div>
               </div>
             </Section>
