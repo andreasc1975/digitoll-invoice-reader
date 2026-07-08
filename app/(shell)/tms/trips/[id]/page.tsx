@@ -41,6 +41,12 @@ export default function TripDetail() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("Customs");
   const [fortollingType, setFortollingType] = useState<"egen"|"ekstern">("egen");
+  const [customsForm, setCustomsForm] = useState({
+    vehicle_reg_no: "", vehicle_nationality: "", driver_name: "",
+    driver_contact: "", customs_place: "", customs_place_eta_date: "",
+    customs_place_eta_time: "", means_of_transport_code: "", transport_mode: "Road",
+    customs_representative: "",
+  });
   const [externalMrn, setExternalMrn] = useState("");
   const [savingMrn, setSavingMrn] = useState(false);
   const [hierarchyOpen, setHierarchyOpen] = useState(false);
@@ -55,6 +61,18 @@ export default function TripDetail() {
       const d = await res.json();
       setTrip({ ...d, from_city: d.from_city ?? d.from, to_city: d.to_city ?? d.to });
       setFortollingType(d.fortolling_type === "ekstern" ? "ekstern" : "egen");
+      setCustomsForm({
+        vehicle_reg_no:          d.vehicle_reg_no ?? d.resource ?? "",
+        vehicle_nationality:     d.vehicle_nationality ?? "",
+        driver_name:             d.driver_name ?? "",
+        driver_contact:          d.driver_contact ?? "",
+        customs_place:           d.customs_place ?? "",
+        customs_place_eta_date:  d.customs_place_eta_date ?? "",
+        customs_place_eta_time:  d.customs_place_eta_time ?? "",
+        means_of_transport_code: d.means_of_transport_code ?? "",
+        transport_mode:          d.transport_mode ?? "Road",
+        customs_representative:  d.customs_representative ?? "",
+      });
       setExternalMrn(d.external_mrn ?? "");
       // Load linked orders
       if (d.order_ids?.length) {
@@ -108,6 +126,13 @@ export default function TripDetail() {
       body: JSON.stringify({ external_mrn: externalMrn }),
     });
     setSavingMrn(false);
+  }
+
+  async function saveCustomsField(field: string, value: string) {
+    await fetch(`/api/tms/trips/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value || null }),
+    });
   }
 
   async function sendToDigitoll() {
