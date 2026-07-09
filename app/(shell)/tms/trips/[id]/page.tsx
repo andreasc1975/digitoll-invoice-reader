@@ -69,6 +69,27 @@ export default function TripDetail() {
   const [sendError, setSendError] = useState<string|null>(null);
   const [orders, setOrders] = useState<{id:string;reference:string;consignor:string|null;consignee:string|null;digitoll_id:string|null;gross_weight:number|null;packages:number|null}[]>([]);
   const [orderGoodsLines, setOrderGoodsLines] = useState<Record<string,{hs_code:string|null;description:string|null}[]>>({});
+  const [vendors, setVendors] = useState<{id:string;name:string;eori:string|null}[]>([]);
+  const [digitollModal, setDigitollModal] = useState<"own"|"external"|null>(null);
+  const [ownForm, setOwnForm] = useState({
+    responsible_party: "Us",
+    customs_place: "",
+    customs_place_eta_date: "",
+    customs_place_eta_time: "",
+    include_master: true,
+    master_doc_number: "",
+    master_doc_type: "",
+    master_carrier_id: "",
+    master_consignor: "",
+    master_consignee: "",
+    master_goods_description: "",
+    master_loading: "",
+    master_unloading: "",
+    master_equipment: "",
+  });
+  const [houseParties, setHouseParties] = useState<Record<string,string>>({});
+  const [houseProcedures, setHouseProcedures] = useState<Record<string,string>>({});
+  const [savingDigitoll, setSavingDigitoll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +98,12 @@ export default function TripDetail() {
       const d = await res.json();
       setTrip({ ...d, from_city: d.from_city ?? d.from, to_city: d.to_city ?? d.to });
       setFortollingType(d.fortolling_type === "ekstern" ? "ekstern" : "egen");
+      setOwnForm(prev => ({
+        ...prev,
+        customs_place:          d.customs_place ?? "",
+        customs_place_eta_date: d.customs_place_eta_date ?? "",
+        customs_place_eta_time: d.customs_place_eta_time ?? "",
+      }));
       setCustomsForm({
         vehicle_reg_no:          d.vehicle_reg_no ?? d.resource ?? "",
         vehicle_nationality:     d.vehicle_nationality ?? "",
@@ -105,6 +132,8 @@ export default function TripDetail() {
         });
       }
     }
+    const vr = await fetch("/api/vendors");
+    if (vr.ok) setVendors(await vr.json());
     setLoading(false);
   }, [id]);
 
@@ -161,6 +190,44 @@ export default function TripDetail() {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value || null }),
     });
+  }
+
+  async function createOwnDigitoll() {
+    setSavingDigitoll(true);
+    // Save customs data to trip first
+    await fetch(`/api/tms/trips/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customs_place:          ownForm.customs_place || null,
+        customs_place_eta_date: ownForm.customs_place_eta_date || null,
+        customs_place_eta_time: ownForm.customs_place_eta_time || null,
+        fortolling_type:        "egen",
+      }),
+    });
+    // Create Transport + Master + Houses via send-digitoll
+    const res = await fetch(`/api/tms/trips/${id}/send-digitoll`, { method: "POST" });
+    if (res.ok) {
+      await load();
+      setDigitollModal(null);
+    }
+    setSavingDigitoll(false);
+  }
+
+  async function registerExternalMrn() {
+    setSavingMrn(true);
+    await fetch(`/api/tms/trips/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        external_mrn:       externalMrn,
+        digitoll_synced_at: new Date().toISOString(),
+        fortolling_type:    "ekstern",
+      }),
+    });
+    await load();
+    setDigitollModal(null);
+    setSavingMrn(false);
   }
 
   async function sendToDigitoll() {
@@ -357,81 +424,55 @@ export default function TripDetail() {
         ) : (
           <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
 
-            {/* FORTOLLING TYPE */}
-            <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, padding: "16px 20px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: 14 }}>Customs Declaration</div>
-              <div style={{ display: "flex", gap: 24 }}>
-                {(["egen", "ekstern"] as const).map(type => (
-                  <label key={type} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input type="radio" name="fortolling" checked={fortollingType === type}
-                      onChange={() => saveFortolling(type)}
-                      style={{ width: 15, height: 15, accentColor: "#446BF9", cursor: "pointer" }} />
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: "#344054" }}>
-                      {type === "egen" ? "Own declaration" : "External declaration (customs agent)"}
-                    </span>
-                  </label>
-                ))}
-              </div>
-              {fortollingType === "ekstern" && (
-                <div style={{ marginTop: 16, display: "flex", alignItems: "flex-end", gap: 10 }}>
-                  <div style={{ flex: 1, maxWidth: 340 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#344054", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 6 }}>MRN from customs agent</div>
-                    <input value={externalMrn} onChange={e => setExternalMrn(e.target.value.toUpperCase())}
-                      placeholder="26NO0000000000000X"
-                      maxLength={18}
-                      style={{ width: "100%", boxSizing: "border-box" as const, border: `1px solid ${externalMrn.length > 0 && !/^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) ? "#F04438" : "#D0D5DD"}`, borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "'Roboto Mono',monospace", color: "#101828", outline: "none" }} />
-                    {externalMrn.length > 0 && !/^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) && (
-                      <div style={{ fontSize: 10.5, color: "#F04438", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 12 }}>error_outline</span>
-                        Invalid MRN format — must be 18 characters: 2 digits + 2 letters + 13 alphanumeric + 1 check character (e.g. 26NO0000000000000X)
-                      </div>
-                    )}
-                    {externalMrn.length === 18 && /^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) && (
-                      <div style={{ fontSize: 10.5, color: "#027A48", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontFamily: "Material Icons", fontSize: 12 }}>check_circle</span>
-                        Valid MRN format
-                      </div>
-                    )}
-                  </div>
-                  {(() => {
-                    const mrnValid = /^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn);
-                    return (
-                      <button onClick={saveExternalMrn} disabled={savingMrn || !mrnValid}
-                        style={{ padding: "7px 16px", border: "none", borderRadius: 2, background: mrnValid ? "#003160" : "#E4E7EC", color: mrnValid ? "#fff" : "#98A2B3", fontSize: 12, fontWeight: 700, cursor: mrnValid ? "pointer" : "not-allowed", fontFamily: "inherit", alignSelf: "flex-start", marginTop: 22 }}>
-                        {savingMrn ? "Saving…" : "Register MRN"}
-                      </button>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* DIGITOLL — always show table, regardless of sent status */}
-            <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+            {/* DIGITOLL SECTION */}
+            {!trip.digitoll_id && !trip.external_mrn ? (
+              <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ padding: "10px 20px", borderBottom: "1px solid #F2F4F7", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#003160" }}>send_to_mobile</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Digitoll</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Transport</span>
+                </div>
+                <div style={{ padding: "24px 20px", display: "flex", gap: 16 }}>
+                  <button onClick={() => setDigitollModal("own")}
+                    style={{ flex: 1, padding: "20px 16px", border: "2px solid #E4E7EC", borderRadius: 4, background: "#fff", cursor: "pointer", textAlign: "left" as const, fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = "#446BF9"}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = "#E4E7EC"}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 4, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#446BF9" }}>send_to_mobile</span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>Create Own Transport</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#667085", lineHeight: 1.5 }}>Create Transport, Master and Houses in Digitoll based on this trip's data.</div>
+                  </button>
+                  <button onClick={() => setDigitollModal("external")}
+                    style={{ flex: 1, padding: "20px 16px", border: "2px solid #E4E7EC", borderRadius: 4, background: "#fff", cursor: "pointer", textAlign: "left" as const, fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = "#667085"}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = "#E4E7EC"}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 4, background: "#F2F4F7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#667085" }}>receipt</span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>Use External Declaration</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#667085", lineHeight: 1.5 }}>A customs agent has handled the declaration. Register the MRN number.</div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ padding: "10px 20px", borderBottom: "1px solid #F2F4F7", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Transport</span>
                 </div>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #E4E7EC", background: "#F8FAFC" }}>
-                      {["Transport ID","Mode","Customs Place","ETA","Status","Houses",""].map(h => (
+                      {["Transport ID","Mode","Customs Place","ETA","Status","Ready",""].map(h => (
                         <th key={h} style={{ padding: "8px 16px", textAlign: "left" as const, fontSize: 9.5, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    <tr
-                      onClick={async () => {
-                        if (!trip.digitoll_transport_id) {
-                          // Auto-create Transport+Master, then open modal
-                          const res = await fetch(`/api/tms/trips/${id}/send-digitoll?auto=1`, { method: "POST" });
-                          if (res.ok) await load();
-                        }
-                        setHierarchyOpen(true);
-                      }}
-                      style={{ cursor: trip.digitoll_id ? "pointer" : "default" }}
-                      onMouseEnter={e => { if (trip.digitoll_id) e.currentTarget.style.background = "#EEF4FF"; }}
+                    <tr onClick={() => setHierarchyOpen(true)} style={{ cursor: "pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#EEF4FF"}
                       onMouseLeave={e => e.currentTarget.style.background = ""}>
                       <td style={{ padding: "12px 16px" }}>
                         {trip.digitoll_id ? (
@@ -444,17 +485,15 @@ export default function TripDetail() {
                       </td>
                       <td style={{ padding: "12px 16px", color: "#344054" }}>{customsForm.transport_mode || "Road"}</td>
                       <td style={{ padding: "12px 16px", color: "#344054" }}>{customsForm.customs_place || "—"}</td>
-                      <td style={{ padding: "12px 16px", color: "#667085" }}>
-                        {customsForm.customs_place_eta_date ? `${customsForm.customs_place_eta_date} ${customsForm.customs_place_eta_time}`.trim() : "—"}
-                      </td>
+                      <td style={{ padding: "12px 16px", color: "#667085" }}>{customsForm.customs_place_eta_date ? `${customsForm.customs_place_eta_date} ${customsForm.customs_place_eta_time}`.trim() : "—"}</td>
                       <td style={{ padding: "12px 16px" }}>
-                        {!trip.digitoll_id ? (
+                        {!trip.digitoll_id && !trip.external_mrn ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 2, background: "#F2F4F7", color: "#667085" }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#98A2B3" }} />Not created
                           </span>
                         ) : trip.digitoll_synced_at ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 2, background: "#ECFDF3", color: "#027A48" }}>
-                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#027A48" }} />{fortollingType === "ekstern" ? "Registered (external)" : "Submitted"}
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#027A48" }} />{trip.external_mrn ? "Registered (external)" : "Submitted"}
                           </span>
                         ) : (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 2, background: "#EFF8FF", color: "#175CD3" }}>
@@ -466,8 +505,7 @@ export default function TripDetail() {
                         {(() => {
                           const ready = orders.filter(o => {
                             const gl = orderGoodsLines[o.id] ?? [];
-                            return o.consignor && o.consignee && o.gross_weight && o.packages &&
-                              gl.some(l => l.description && l.hs_code);
+                            return o.consignor && o.consignee && o.gross_weight && o.packages && gl.some(l => l.description && l.hs_code);
                           }).length;
                           return (
                             <span style={{ fontSize: 11, fontWeight: 700, color: ready === orders.length && orders.length > 0 ? "#027A48" : ready > 0 ? "#B54708" : "#667085" }}>
@@ -477,15 +515,14 @@ export default function TripDetail() {
                         })()}
                       </td>
                       <td style={{ padding: "12px 16px" }}>
-                        {trip.digitoll_synced_at ? (
-                          <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#446BF9" }}>open_in_new</span>
-                        ) : (
-                          <button onClick={e => { e.stopPropagation(); sendToDigitoll(); }} disabled={!canSend || sending}
-                            style={{ padding: "5px 12px", border: "none", borderRadius: 2, background: (canSend && !sending) ? "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)" : "#E4E7EC", color: (canSend && !sending) ? "#fff" : "#98A2B3", fontSize: 11.5, fontWeight: 700, cursor: (canSend && !sending) ? "pointer" : "not-allowed", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
-                            <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>send</span>
-                            {sending ? "Sending…" : "Send to Digitoll"}
-                          </button>
-                        )}
+                        {trip.digitoll_synced_at
+                          ? <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#446BF9" }}>open_in_new</span>
+                          : <button onClick={e => { e.stopPropagation(); sendToDigitoll(); }} disabled={!canSend || sending}
+                              style={{ padding: "5px 12px", border: "none", borderRadius: 2, background: (canSend && !sending) ? "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)" : "#E4E7EC", color: (canSend && !sending) ? "#fff" : "#98A2B3", fontSize: 11.5, fontWeight: 700, cursor: (canSend && !sending) ? "pointer" : "not-allowed", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" as const }}>
+                              <span style={{ fontFamily: "Material Icons", fontSize: 13, lineHeight: 1 }}>send</span>
+                              {sending ? "Sending…" : "Send to Digitoll"}
+                            </button>
+                        }
                       </td>
                     </tr>
                   </tbody>
@@ -496,13 +533,287 @@ export default function TripDetail() {
                     <span style={{ fontFamily: "'Roboto Mono',monospace", fontSize: 12.5, color: "#344054", letterSpacing: ".05em" }}>{trip.external_mrn}</span>
                   </div>
                 )}
-
               </div>
+            )}
+
+            {/* CREATE OWN TRANSPORT MODAL */}
+            {digitollModal === "own" && (
+              <div onClick={() => setDigitollModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 4, width: "min(760px,95vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+                  <div style={{ padding: "16px 24px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>Digitoll Messages — {trip.reference}</div>
+                      <div style={{ fontSize: 11, color: "#667085", marginTop: 2 }}>{trip.from_city} → {trip.to_city}</div>
+                    </div>
+                    <button onClick={() => setDigitollModal(null)} style={{ width: 28, height: 28, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#667085" }}>close</span>
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                    {/* Transport */}
+                    <div style={{ border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #E4E7EC", fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Transport</div>
+                      <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Trip No</div>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, padding: "7px 10px", background: "#F8FAFC", borderRadius: 2, border: "1px solid #E4E7EC", color: "#344054" }}>{trip.reference}</div>
+                        </div>
+                        <div style={{ gridColumn: "span 2" }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Responsible Party</div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <div style={{ display: "flex", border: "1px solid #D0D5DD", borderRadius: 2, overflow: "hidden", flexShrink: 0 }}>
+                              {(["Us", "Vendor"] as const).map(opt => {
+                                const isActive = opt === "Us" ? ownForm.responsible_party === "Us" : ownForm.responsible_party !== "Us";
+                                return (
+                                  <button key={opt} onClick={() => setOwnForm(f => ({ ...f, responsible_party: opt === "Us" ? "Us" : "" }))}
+                                    style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "none", background: isActive ? "#003160" : "#fff", color: isActive ? "#fff" : "#344054", cursor: "pointer", fontFamily: "inherit" }}>
+                                    {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {ownForm.responsible_party !== "Us" && (
+                              <select value={ownForm.responsible_party} onChange={e => setOwnForm(f => ({ ...f, responsible_party: e.target.value }))}
+                                style={{ flex: 1, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", background: "#fff" }}>
+                                <option value="">— Select vendor —</option>
+                                {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Customs Place</div>
+                          <select value={ownForm.customs_place} onChange={e => setOwnForm(f => ({ ...f, customs_place: e.target.value }))}
+                            style={{ width: "100%", border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", background: "#fff", color: ownForm.customs_place ? "#101828" : "#98A2B3" }}>
+                            <option value="">— Select —</option>
+                            {["Svinesund (E6)","Ørje (E18)","Magnormoen (rv. 2)","Rømskog","Riksåsen","Trysil (rv. 25)","Engerdal","Røros (rv. 31)","Storlien (E14)","Meråker","Björnfjell / Riksgransen (E10)","Graddis (rv. 77)","Umbukta (rv. 73)","Tunnsjødal","Storskog (E105)"].map(p => <option key={p}>{p}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Customs ETA</div>
+                          <input type="date" value={ownForm.customs_place_eta_date} onChange={e => setOwnForm(f => ({ ...f, customs_place_eta_date: e.target.value }))}
+                            style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", marginBottom: 4 }} />
+                          <input type="time" value={ownForm.customs_place_eta_time} onChange={e => setOwnForm(f => ({ ...f, customs_place_eta_time: e.target.value }))}
+                            style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit" }} />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Master toggle + form */}
+                    <div style={{ border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ padding: "8px 16px", background: "#F8FAFC", borderBottom: ownForm.include_master ? "1px solid #E4E7EC" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Master</span>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                          <span style={{ fontSize: 11.5, color: "#344054" }}>Include Master</span>
+                          <div onClick={() => setOwnForm(f => ({ ...f, include_master: !f.include_master }))}
+                            style={{ width: 36, height: 20, borderRadius: 10, background: ownForm.include_master ? "#446BF9" : "#D0D5DD", position: "relative" as const, cursor: "pointer" }}>
+                            <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 2, left: ownForm.include_master ? 18 : 2, boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                          </div>
+                        </label>
+                      </div>
+                      {ownForm.include_master && (
+                        <div style={{ padding: "16px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Document Number (Waybill) *</div>
+                              <input value={ownForm.master_doc_number ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_doc_number: e.target.value }))}
+                                placeholder="e.g. 12345678"
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Document Type *</div>
+                              <select value={ownForm.master_doc_type ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_doc_type: e.target.value }))}
+                                style={{ width: "100%", border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", background: "#fff" }}>
+                                <option value="">— Select —</option>
+                                <option value="MASTER_AWB">Master AWB</option>
+                                <option value="HOUSE_AWB">House AWB</option>
+                                <option value="MASTER_BL">Master B/L</option>
+                                <option value="HOUSE_BL">House B/L</option>
+                                <option value="CMR">CMR</option>
+                                <option value="CIM">CIM</option>
+                              </select>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Carrier ID (EORI)</div>
+                              <input value={ownForm.master_carrier_id ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_carrier_id: e.target.value }))}
+                                placeholder="e.g. NO123456789"
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Consignor</div>
+                              <input value={ownForm.master_consignor ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_consignor: e.target.value }))}
+                                placeholder="Sender name or EORI"
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Consignee</div>
+                              <input value={ownForm.master_consignee ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_consignee: e.target.value }))}
+                                placeholder="Recipient name or EORI"
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Goods Description</div>
+                              <input value={ownForm.master_goods_description ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_goods_description: e.target.value }))}
+                                placeholder="e.g. Frozen fish, machine parts"
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Loading Location</div>
+                              <input value={ownForm.master_loading ?? trip.from_city ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_loading: e.target.value }))}
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Unloading Location</div>
+                              <input value={ownForm.master_unloading ?? trip.to_city ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_unloading: e.target.value }))}
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#667085", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 4 }}>Transport Equipment</div>
+                              <input value={ownForm.master_equipment ?? ""} onChange={e => setOwnForm(f => ({ ...f, master_equipment: e.target.value }))}
+                                placeholder="e.g. Container no., trailer reg."
+                                style={{ width: "100%", boxSizing: "border-box" as const, border: "1px solid #D0D5DD", borderRadius: 2, padding: "7px 10px", fontSize: 12.5, fontFamily: "inherit", color: "#101828" }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Houses */}
+                    {orders.length > 0 && (
+                      <div style={{ border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #E4E7EC", fontSize: 10, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Houses / Orders ({orders.length})</div>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid #E4E7EC" }}>
+                              {["Order No","Consignor","Consignee","Responsible Party","Customs Procedure"].map(h => (
+                                <th key={h} style={{ padding: "8px 12px", textAlign: "left" as const, fontSize: 9.5, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {orders.map(o => (
+                              <tr key={o.id} style={{ borderBottom: "1px solid #F2F4F7" }}>
+                                <td style={{ padding: "8px 12px", fontWeight: 600, color: "#175CD3" }}>{o.reference}</td>
+                                <td style={{ padding: "8px 12px", color: "#344054" }}>{o.consignor ?? "—"}</td>
+                                <td style={{ padding: "8px 12px", color: "#344054" }}>{o.consignee ?? "—"}</td>
+                                <td style={{ padding: "8px 12px" }}>
+                                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                    <div style={{ display: "flex", border: "1px solid #D0D5DD", borderRadius: 2, overflow: "hidden", flexShrink: 0 }}>
+                                      {["Us", "Vendor"].map(opt => (
+                                        <button key={opt} onClick={() => setHouseParties(p => ({ ...p, [o.id]: opt === "Us" ? "Us" : (p[o.id] !== "Us" ? p[o.id] : "") }))}
+                                          style={{ padding: "4px 10px", fontSize: 11, fontWeight: 600, border: "none", background: (houseParties[o.id] ?? "Us") === opt || ((houseParties[o.id] ?? "Us") !== "Us" && opt === "Vendor") ? "#003160" : "#fff", color: (houseParties[o.id] ?? "Us") === opt || ((houseParties[o.id] ?? "Us") !== "Us" && opt === "Vendor") ? "#fff" : "#344054", cursor: "pointer", fontFamily: "inherit" }}>
+                                          {opt}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    {(houseParties[o.id] ?? "Us") !== "Us" && (
+                                      <select value={houseParties[o.id] ?? ""} onChange={e => setHouseParties(p => ({ ...p, [o.id]: e.target.value }))}
+                                        style={{ flex: 1, border: "1px solid #D0D5DD", borderRadius: 2, padding: "4px 8px", fontSize: 11.5, fontFamily: "inherit", background: "#fff" }}>
+                                        <option value="">— Select vendor —</option>
+                                        {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                      </select>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ padding: "8px 12px" }}>
+                                  <select value={houseProcedures[o.id] ?? ""} onChange={e => setHouseProcedures(p => ({ ...p, [o.id]: e.target.value }))}
+                                    style={{ width: "100%", border: "1px solid #D0D5DD", borderRadius: 2, padding: "4px 8px", fontSize: 11.5, fontFamily: "inherit", background: "#fff", color: houseProcedures[o.id] ? "#101828" : "#98A2B3" }}>
+                                    <option value="">— Select —</option>
+                                    <option value="40 00">40 00 — Free circulation</option>
+                                    <option value="42 00">42 00 — Free circulation + VAT exemption</option>
+                                    <option value="61 00">61 00 — Re-export</option>
+                                    <option value="10 00">10 00 — Permanent export</option>
+                                  </select>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ padding: "12px 24px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8, flexShrink: 0 }}>
+                    <button onClick={() => setDigitollModal(null)} style={{ padding: "7px 16px", border: "1px solid #D0D5DD", borderRadius: 2, background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
+                    <button onClick={createOwnDigitoll} disabled={savingDigitoll || !ownForm.customs_place}
+                      style={{ padding: "7px 16px", border: "none", borderRadius: 2, background: (!savingDigitoll && ownForm.customs_place) ? "linear-gradient(180deg,#446BF9 0%,#0058AC 100%)" : "#E4E7EC", color: (!savingDigitoll && ownForm.customs_place) ? "#fff" : "#98A2B3", fontSize: 12.5, fontWeight: 700, cursor: (!savingDigitoll && ownForm.customs_place) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                      {savingDigitoll ? "Creating…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* USE EXTERNAL MODAL */}
+            {digitollModal === "external" && (
+              <div onClick={() => setDigitollModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 4, width: "min(480px,95vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+                  <div style={{ padding: "16px 24px", borderBottom: "1px solid #E4E7EC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#101828" }}>Use External Declaration</div>
+                    <button onClick={() => setDigitollModal(null)} style={{ width: 28, height: 28, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontFamily: "Material Icons", fontSize: 20, color: "#667085" }}>close</span>
+                    </button>
+                  </div>
+                  <div style={{ padding: "24px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#344054", textTransform: "uppercase" as const, letterSpacing: ".05em", marginBottom: 6 }}>MRN from customs agent</div>
+                    <input value={externalMrn} onChange={e => setExternalMrn(e.target.value.toUpperCase())}
+                      placeholder="26NO0000000000000X" maxLength={18}
+                      style={{ width: "100%", boxSizing: "border-box" as const, border: `1px solid ${externalMrn.length > 0 && !/^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) ? "#F04438" : "#D0D5DD"}`, borderRadius: 2, padding: "7px 10px", fontSize: 13, fontFamily: "'Roboto Mono',monospace", color: "#101828", outline: "none" }} />
+                    {externalMrn.length > 0 && !/^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) && (
+                      <div style={{ fontSize: 10.5, color: "#F04438", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 12 }}>error_outline</span>
+                        Invalid format — 18 chars: 2 digits + 2 letters + 14 alphanumeric
+                      </div>
+                    )}
+                    {/^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) && (
+                      <div style={{ fontSize: 10.5, color: "#027A48", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontFamily: "Material Icons", fontSize: 12 }}>check_circle</span>
+                        Valid MRN format
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ padding: "12px 24px", borderTop: "1px solid #E4E7EC", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <button onClick={() => setDigitollModal(null)} style={{ padding: "7px 16px", border: "1px solid #D0D5DD", borderRadius: 2, background: "#fff", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "#344054" }}>Cancel</button>
+                    <button onClick={registerExternalMrn} disabled={savingMrn || !/^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn)}
+                      style={{ padding: "7px 16px", border: "none", borderRadius: 2, background: /^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) ? "#003160" : "#E4E7EC", color: /^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) ? "#fff" : "#98A2B3", fontSize: 12.5, fontWeight: 700, cursor: /^\d{2}[A-Z]{2}[A-Z0-9]{13}[A-Z0-9]$/.test(externalMrn) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                      {savingMrn ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MASTER — shown if created */}
+            {(trip.digitoll_id || trip.external_mrn) && (
+              <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ padding: "10px 20px", borderBottom: "1px solid #F2F4F7" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Master</span>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #E4E7EC", background: "#F8FAFC" }}>
+                      {["Document No","Document Type","Carrier ID","Consignor","Consignee","Loading","Unloading"].map(h => (
+                        <th key={h} style={{ padding: "8px 16px", textAlign: "left" as const, fontSize: 9.5, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".05em" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr onClick={() => setHierarchyOpen(true)} style={{ cursor: "pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#EEF4FF"}
+                      onMouseLeave={e => e.currentTarget.style.background = ""}>
+                      <td style={{ padding: "12px 16px", color: "#175CD3", fontWeight: 600 }}>{ownForm.master_doc_number || "—"}</td>
+                      <td style={{ padding: "12px 16px", color: "#344054" }}>{ownForm.master_doc_type || "—"}</td>
+                      <td style={{ padding: "12px 16px", color: "#344054" }}>{ownForm.master_carrier_id || "—"}</td>
+                      <td style={{ padding: "12px 16px", color: "#344054" }}>{ownForm.master_consignor || "—"}</td>
+                      <td style={{ padding: "12px 16px", color: "#344054" }}>{ownForm.master_consignee || "—"}</td>
+                      <td style={{ padding: "12px 16px", color: "#667085" }}>{ownForm.master_loading || trip.from_city || "—"}</td>
+                      <td style={{ padding: "12px 16px", color: "#667085" }}>{ownForm.master_unloading || trip.to_city || "—"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* ORDERS / HOUSES */}
             <div style={{ background: "#fff", border: "1px solid #E4E7EC", borderRadius: 4, overflow: "hidden" }}>
               <div style={{ padding: "10px 20px", borderBottom: "1px solid #F2F4F7", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "Material Icons", fontSize: 16, color: "#003160" }}>receipt_long</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#003160", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>Orders / Houses</span>
                 <span style={{ fontSize: 10, color: "#98A2B3", marginLeft: 4 }}>{orders.length} order{orders.length !== 1 ? "s" : ""}</span>
               </div>
@@ -550,11 +861,11 @@ export default function TripDetail() {
       </div>
 
       {/* HIERARCHY MODAL */}
-      {hierarchyOpen && (
+      {hierarchyOpen && trip && (
         trip.digitoll_transport_id ? (
           <HierarchyModal
             type="transport"
-            id={trip.digitoll_transport_id}
+            id={trip.digitoll_transport_id!}
             onClose={() => setHierarchyOpen(false)}
             onEdit={() => {}}
           />
